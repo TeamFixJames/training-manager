@@ -100,6 +100,29 @@
 .ot-consistency-copy{font-size:10px;color:#718196;margin-top:3px}.consistency-strip{margin-top:12px;padding-top:12px;border-top:1px solid #eef1f4}.consistency-title{display:flex;justify-content:space-between;font-size:11px;color:#516275}.consistency-weeks{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:8px}.consistency-week{text-align:center}.consistency-week i{display:block;height:7px;border-radius:99px;background:#e6eaf0}.consistency-week.active i{background:#16803c}.consistency-week span{font-size:8px;color:#8a98a8;display:block;margin-top:4px;white-space:nowrap}
 @media(max-width:950px){.team-summary{grid-template-columns:repeat(2,1fr)}.team-employee-row{grid-template-columns:12px 1fr}.team-reason{grid-column:2}.team-open{display:none}.coach-note-form{grid-template-columns:1fr}.consistency-week span{display:none}}
 </style>
+
+<style id="activity-coaching-v10-css">
+.activity-list-v10 .activity-extra-v10{display:none}
+.activity-list-v10.expanded .activity-extra-v10{display:block}
+.activity-toggle-v10{
+  margin-top:10px;border:1px solid #ccd7e4;background:#fff;color:#23415f;
+  border-radius:8px;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer
+}
+.coaching-card-v10{
+  margin:14px 0 18px;border:1px solid #dce5ef;border-radius:12px;background:#fff;padding:14px 16px
+}
+.coaching-head-v10{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
+.coaching-title-v10{font-weight:800;color:#183550}
+.coaching-add-v10{
+  border:0;border-radius:8px;padding:7px 10px;background:#173a5e;color:#fff;font-weight:700;cursor:pointer
+}
+.coaching-notes-v10{display:flex;flex-direction:column;gap:8px}
+.coaching-note-v10{background:#f7f9fc;border-radius:8px;padding:9px 10px}
+.coaching-note-v10 .date{font-size:10px;color:#718196;margin-bottom:3px}
+.coaching-note-v10 .text{font-size:12px;color:#334a62;line-height:1.45}
+.coaching-empty-v10{font-size:11px;color:#7a899a}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1128,5 +1151,149 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
  });
 })();
 </script>
+
+<script id="activity-coaching-v10-js">
+(function(){
+  const NOTE_KEY="sf_manager_coaching_notes_v10";
+
+  function getDB(){
+    try{return JSON.parse(localStorage.getItem(NOTE_KEY)||"{}")}catch(e){return {}}
+  }
+  function saveDB(x){localStorage.setItem(NOTE_KEY,JSON.stringify(x))}
+  function currentEmployee(){
+    try{
+      if(window.db && Array.isArray(db.employees)){
+        return db.employees.find(e=>e.id===db.activeId) || db.employees[0] || null;
+      }
+    }catch(e){}
+    return null;
+  }
+  function empKey(){
+    const e=currentEmployee();
+    return e ? String(e.id||e.name||"employee") : "default";
+  }
+  function fmtDate(v){
+    const d=new Date((v||"")+"T12:00:00");
+    return isNaN(d.getTime())?String(v||""):d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+  }
+
+  function stripCoachingFromRecentActivity(){
+    document.querySelectorAll(".recent-activity,.activity-card,.recent-activity-card,[data-recent-activity]").forEach(card=>{
+      card.querySelectorAll("li,.activity-item,.timeline-item,div").forEach(item=>{
+        const t=(item.textContent||"").toLowerCase();
+        if(t.includes("coaching note") || t.includes("manager note")){
+          item.remove();
+        }
+      });
+    });
+  }
+
+  function collapseRecentActivity(){
+    const cards=[...document.querySelectorAll(".recent-activity,.activity-card,.recent-activity-card,[data-recent-activity]")];
+    cards.forEach(card=>{
+      const title=(card.textContent||"").toLowerCase();
+      if(!title.includes("recent activity")) return;
+
+      const list = card.querySelector("ul,ol,.activity-list,.timeline,.recent-activity-list") || card;
+      const items=[...list.children].filter(el=>{
+        const t=(el.textContent||"").trim();
+        return t && !/recent activity|show more|show less/i.test(t);
+      });
+
+      items.forEach((el,i)=>{
+        el.classList.toggle("activity-extra-v10", i>=5);
+      });
+
+      list.classList.add("activity-list-v10");
+
+      let btn=card.querySelector(".activity-toggle-v10");
+      if(items.length>5){
+        if(!btn){
+          btn=document.createElement("button");
+          btn.type="button";
+          btn.className="activity-toggle-v10";
+          card.appendChild(btn);
+        }
+        const expanded=list.classList.contains("expanded");
+        btn.textContent=expanded?`Show Less`:`Show More (${items.length-5})`;
+        btn.onclick=function(){
+          list.classList.toggle("expanded");
+          collapseRecentActivity();
+        };
+      }else if(btn){
+        btn.remove();
+      }
+    });
+  }
+
+  function notes(){
+    const all=getDB();
+    return Array.isArray(all[empKey()])?all[empKey()]:[];
+  }
+
+  function addNote(){
+    const today=new Date().toISOString().slice(0,10);
+    const date=prompt("Note date (YYYY-MM-DD):",today);
+    if(!date)return;
+    const note=prompt("Manager coaching note:","");
+    if(!note || !note.trim())return;
+
+    const all=getDB(), k=empKey();
+    all[k]=all[k]||[];
+    all[k].push({date:date,text:note.trim(),createdAt:Date.now()});
+    all[k].sort((a,b)=>String(b.date).localeCompare(String(a.date)) || (b.createdAt||0)-(a.createdAt||0));
+    saveDB(all);
+    renderCoaching();
+  }
+
+  function renderCoaching(){
+    let host=document.getElementById("coachingNotesV10");
+    if(!host){
+      const recent=[...document.querySelectorAll("h1,h2,h3,h4,div")].find(el=>{
+        return /^recent activity/i.test((el.textContent||"").trim());
+      });
+      if(!recent)return;
+      const card=recent.closest(".card,.panel,.recent-activity,.activity-card")||recent.parentElement;
+      if(!card)return;
+      host=document.createElement("section");
+      host.id="coachingNotesV10";
+      host.className="coaching-card-v10";
+      card.insertAdjacentElement("afterend",host);
+    }
+
+    const list=notes();
+    host.innerHTML=`
+      <div class="coaching-head-v10">
+        <div>
+          <div class="coaching-title-v10">Coaching Notes</div>
+          <div style="font-size:11px;color:#718196;margin-top:2px">Manager notes for this employee</div>
+        </div>
+        <button type="button" class="coaching-add-v10" id="addCoachingNoteV10">+ Add Note</button>
+      </div>
+      <div class="coaching-notes-v10">
+        ${list.length ? list.map(n=>`
+          <div class="coaching-note-v10">
+            <div class="date">${fmtDate(n.date)}</div>
+            <div class="text">${String(n.text||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}</div>
+          </div>`).join("") : '<div class="coaching-empty-v10">No coaching notes yet.</div>'}
+      </div>`;
+    document.getElementById("addCoachingNoteV10")?.addEventListener("click",addNote);
+  }
+
+  function run(){
+    stripCoachingFromRecentActivity();
+    collapseRecentActivity();
+    renderCoaching();
+  }
+
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(run,200));
+  document.addEventListener("click",()=>setTimeout(run,80),true);
+  new MutationObserver(()=>{
+    clearTimeout(window.__activityV10);
+    window.__activityV10=setTimeout(run,60);
+  }).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
 </body>
 </html>
