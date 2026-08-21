@@ -1472,5 +1472,77 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 })();
 </script>
 
+
+<script id="group-call-runtime-v18">
+(function(){
+  function applyGroupCallDefaults(){
+    try{
+      if(window.db && Array.isArray(db.employees)){
+        let changed=false;
+        db.employees.forEach(emp=>{
+          (emp.paths||[]).forEach(path=>{
+            (path.events||[]).forEach(ev=>{
+              if(String(ev.title||"").toLowerCase().includes("weekly group call")){
+                if(!ev.duration || ev.duration==="—" || ev.duration==="-"){
+                  ev.duration="01:00:00";
+                  changed=true;
+                }
+              }
+            });
+          });
+        });
+        if(changed && typeof persist==="function") persist();
+      }
+    }catch(err){
+      console.warn("Could not set Weekly Group Call runtime.",err);
+    }
+
+    document.querySelectorAll("tr,.schedule-row,.training-row").forEach(row=>{
+      const txt=(row.textContent||"").toLowerCase();
+      if(!txt.includes("weekly group call"))return;
+
+      const table=row.closest("table");
+      const headers=table?[...table.querySelectorAll("thead th")]:[];
+
+      // Ensure runtime/duration cell visibly shows 01:00:00.
+      let runtimeIdx=headers.findIndex(th=>{
+        const t=(th.textContent||"").trim().toLowerCase();
+        return t==="runtime" || t==="duration";
+      });
+      if(runtimeIdx>=0 && row.children[runtimeIdx]){
+        const cell=row.children[runtimeIdx];
+        if(!cell.querySelector("input,select,textarea")) cell.textContent="01:00:00";
+      }
+
+      // Remove any old dash from the Completed cell while preserving checkbox.
+      let completedIdx=headers.findIndex(th=>(th.textContent||"").trim().toLowerCase()==="completed");
+      if(completedIdx>=0 && row.children[completedIdx]){
+        const cell=row.children[completedIdx];
+        const cb=cell.querySelector('input[type="checkbox"]');
+        if(cb){
+          [...cell.childNodes].forEach(node=>{
+            if(node.nodeType===Node.TEXT_NODE && /^[\s—-]*$/.test(node.textContent||"")){
+              node.remove();
+            }
+          });
+          cell.querySelectorAll("span").forEach(span=>{
+            if(/^[\s—-]*$/.test(span.textContent||"")) span.remove();
+          });
+        }
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(applyGroupCallDefaults,250));
+  document.addEventListener("click",()=>setTimeout(applyGroupCallDefaults,80),true);
+  document.addEventListener("change",()=>setTimeout(applyGroupCallDefaults,80),true);
+
+  new MutationObserver(()=>{
+    clearTimeout(window.__groupV18);
+    window.__groupV18=setTimeout(applyGroupCallDefaults,80);
+  }).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
 </body>
 </html>
