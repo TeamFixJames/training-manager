@@ -101,26 +101,12 @@
 @media(max-width:950px){.team-summary{grid-template-columns:repeat(2,1fr)}.team-employee-row{grid-template-columns:12px 1fr}.team-reason{grid-column:2}.team-open{display:none}.coach-note-form{grid-template-columns:1fr}.consistency-week span{display:none}}
 </style>
 
-<style id="activity-coaching-v10-css">
-.activity-list-v10 .activity-extra-v10{display:none}
-.activity-list-v10.expanded .activity-extra-v10{display:block}
-.activity-toggle-v10{
-  margin-top:10px;border:1px solid #ccd7e4;background:#fff;color:#23415f;
-  border-radius:8px;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer
-}
-.coaching-card-v10{
-  margin:14px 0 18px;border:1px solid #dce5ef;border-radius:12px;background:#fff;padding:14px 16px
-}
-.coaching-head-v10{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
-.coaching-title-v10{font-weight:800;color:#183550}
-.coaching-add-v10{
-  border:0;border-radius:8px;padding:7px 10px;background:#173a5e;color:#fff;font-weight:700;cursor:pointer
-}
-.coaching-notes-v10{display:flex;flex-direction:column;gap:8px}
-.coaching-note-v10{background:#f7f9fc;border-radius:8px;padding:9px 10px}
-.coaching-note-v10 .date{font-size:10px;color:#718196;margin-bottom:3px}
-.coaching-note-v10 .text{font-size:12px;color:#334a62;line-height:1.45}
-.coaching-empty-v10{font-size:11px;color:#7a899a}
+
+
+
+<style id="activity-coaching-v11-css">
+#recentActivityToggle{margin:10px 0 0 0}
+.coaching-panel{margin-top:14px}
 </style>
 
 </head>
@@ -296,9 +282,10 @@ function ongoingWeekActivity(e,p,start){const eng=engagementFor(e),events=[...(p
 function ongoingConsistency(e,p){const now=new Date(),weeks=[];for(let i=0;i<8;i++){const s=weekStartDate(now);s.setDate(s.getDate()-i*7);const a=ongoingWeekActivity(e,p,s);weeks.push({start:s,total:a.total,active:a.total>0})}const activeWeeks=weeks.filter(x=>x.active).length;let streak=0;for(const w of weeks){if(w.active)streak++;else break}const activityDates=[];for(const x of [...(p?.events||[]),...(p?.webinars||[])])if(x.completed&&x.date)activityDates.push(date(x.date));const eng=engagementFor(e);for(const x of [...(eng.fix||[]),...(eng.trainer||[])])if(x.date)activityDates.push(date(x.date));activityDates.sort((a,b)=>b-a);return{weeks,activeWeeks,streak,lastActivity:activityDates[0]||null}}
 function certPaceSummary(p){const vids=(p?.events||[]).filter(x=>(x.kind||'video')==='video').slice().sort((a,b)=>a.date.localeCompare(b.date));const now=new Date();now.setHours(12,0,0,0);const expected=Math.min(90,vids.filter(x=>date(x.date)<=now).length),completed=Math.min(90,vids.filter(x=>x.completed).length);return{expected,completed,delta:completed-expected}}
 function employeeAttention(e){const p=activePath(e);if(!p)return{level:'attention',label:'Needs Attention',reason:'No training path assigned'};if(p.type==='cert'){const pace=certPaceSummary(p);const videos=(p.events||[]).filter(x=>(x.kind||'video')==='video');const allDone=videos.length>0&&videos.every(x=>x.completed);if(p.level2Passed)return{level:'good',label:'On Track',reason:'Level 2 certification passed'};if(allDone&&!p.level1Passed)return{level:'attention',label:'Needs Attention',reason:'Video curriculum complete · Level 1 ready'};if(allDone&&p.level1Passed&&!p.level2Passed)return{level:'attention',label:'Needs Attention',reason:'Level 2 certification ready'};if(pace.delta<=-3)return{level:'action',label:'Action Needed',reason:Math.abs(pace.delta)+' videos behind pace'};if(pace.delta<0)return{level:'attention',label:'Needs Attention',reason:Math.abs(pace.delta)+' video'+(Math.abs(pace.delta)===1?'':'s')+' behind pace'};return{level:'good',label:'On Track',reason:pace.delta>0?pace.delta+' videos ahead of pace':'Certification pace is on schedule'}}const c=ongoingConsistency(e,p),current=c.weeks[0];if(current?.active)return{level:'good',label:'On Track',reason:'Active this week · '+c.activeWeeks+' of last 8 weeks active'};if(c.lastActivity){const days=Math.floor((new Date()-c.lastActivity)/86400000);if(days>=14)return{level:'action',label:'Action Needed',reason:'No training activity in '+days+' days'};return{level:'attention',label:'Needs Attention',reason:'No activity yet this week'}}const started=p.startDate?date(p.startDate):new Date();const age=Math.floor((new Date()-started)/86400000);return age>=14?{level:'action',label:'Action Needed',reason:'No ongoing training activity logged'}:{level:'attention',label:'Needs Attention',reason:'No activity yet this week'}}
-function recentActivity(e){const out=[];for(const p of e.paths||[]){for(const x of [...(p.events||[]),...(p.webinars||[])])if(x.completed&&x.date)out.push({date:x.date,type:'training',title:x.title||'Training completed',detail:pathName(p.type)+(x.section?' · '+x.section:'')})}const eng=engagementFor(e);for(const x of eng.fix||[])if(x.date)out.push({date:x.date,type:'fix',title:'Fix My Call used',detail:x.note||'Engagement activity'});for(const x of eng.trainer||[])if(x.date)out.push({date:x.date,type:'trainer',title:'Call a Trainer used',detail:x.note||'Engagement activity'});for(const x of coachingFor(e))if(x.date)out.push({date:x.date,type:'note',title:'Manager coaching note',detail:x.text||''});return out.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,12)}
-function recentActivityPanel(e){const items=recentActivity(e);return`<div class="activity-panel"><div class="activity-panel-head"><div><h3>Recent Activity & Coaching</h3><p>Training activity, support-tool usage, and manager coaching notes in one timeline.</p></div><button class="btn" id="addCoachingNoteBtn">+ Coaching Note</button></div><div class="coach-note-form" id="coachNoteForm" style="display:none"><input id="coachNoteDate" type="date" value="${iso(new Date())}"><textarea id="coachNoteText" rows="2" placeholder="Add a coaching observation, development focus, or follow-up..."></textarea><div><button class="btn primary" id="saveCoachingNoteBtn">Save Note</button><button class="btn" id="cancelCoachingNoteBtn">Cancel</button></div></div><div class="activity-timeline">${items.length?items.map(x=>`<div class="activity-row"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join(''):'<div class="activity-empty">No activity recorded yet. Completed training and coaching notes will appear here.</div>'}</div></div>`}
-function bindRecentActivity(e){const add=$('#addCoachingNoteBtn'),form=$('#coachNoteForm');if(!add||!form)return;add.onclick=()=>{form.style.display='grid';$('#coachNoteText').focus()};$('#cancelCoachingNoteBtn').onclick=()=>{form.style.display='none'};$('#saveCoachingNoteBtn').onclick=()=>{const dt=$('#coachNoteDate').value,txt=$('#coachNoteText').value.trim();if(!dt||!txt){alert('Add a date and coaching note.');return}const items=coachingFor(e);items.push({id:uid(),date:dt,text:txt});saveCoachingFor(e,items);renderAll();showToast('Coaching note added')}}
+function recentActivity(e){const out=[];for(const p of e.paths||[]){for(const x of [...(p.events||[]),...(p.webinars||[])])if(x.completed&&x.date)out.push({date:x.date,type:'training',title:x.title||'Training completed',detail:pathName(p.type)+(x.section?' · '+x.section:'')})}const eng=engagementFor(e);for(const x of eng.fix||[])if(x.date)out.push({date:x.date,type:'fix',title:'Fix My Call used',detail:x.note||'Engagement activity'});for(const x of eng.trainer||[])if(x.date)out.push({date:x.date,type:'trainer',title:'Call a Trainer used',detail:x.note||'Engagement activity'});return out.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,20)}
+function recentActivityPanel(e){const items=recentActivity(e),visible=items.slice(0,5),hidden=items.slice(5);return`<div class="activity-panel"><div class="activity-panel-head"><div><h3>Recent Activity</h3><p>Completed training and support-tool usage for this employee.</p></div></div><div class="activity-timeline" id="recentActivityTimeline">${visible.length?visible.map(x=>`<div class="activity-row"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join(''):'<div class="activity-empty">No activity recorded yet.</div>'}${hidden.map(x=>`<div class="activity-row recent-extra" style="display:none"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join('')}</div>${hidden.length?`<button class="btn" id="recentActivityToggle">Show More (${hidden.length})</button>`:''}</div>`}
+function coachingPanel(e){const items=[...coachingFor(e)].sort((a,b)=>String(b.date).localeCompare(String(a.date)));return`<div class="activity-panel coaching-panel"><div class="activity-panel-head"><div><h3>Coaching Notes</h3><p>Manager notes and coaching observations for this employee.</p></div><button class="btn" id="addCoachingNoteBtn">+ Add Note</button></div><div class="coach-note-form" id="coachNoteForm" style="display:none"><input id="coachNoteDate" type="date" value="${iso(new Date())}"><textarea id="coachNoteText" rows="2" placeholder="Add a coaching observation, development focus, or follow-up..."></textarea><div><button class="btn primary" id="saveCoachingNoteBtn">Save Note</button><button class="btn" id="cancelCoachingNoteBtn">Cancel</button></div></div><div class="activity-timeline">${items.length?items.map(x=>`<div class="activity-row"><div class="activity-dot note"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>Manager note</b><span>${esc(x.text||'')}</span></div></div>`).join(''):'<div class="activity-empty">No coaching notes yet.</div>'}</div></div>`}
+function bindRecentActivity(e){const toggle=$('#recentActivityToggle');if(toggle){toggle.onclick=()=>{const extra=$$('.recent-extra'),open=extra.some(x=>x.style.display!=='none');extra.forEach(x=>x.style.display=open?'none':'grid');toggle.textContent=open?`Show More (${extra.length})`:'Show Less'}}const add=$('#addCoachingNoteBtn'),form=$('#coachNoteForm');if(!add||!form)return;add.onclick=()=>{form.style.display='grid';$('#coachNoteText').focus()};$('#cancelCoachingNoteBtn').onclick=()=>{form.style.display='none'};$('#saveCoachingNoteBtn').onclick=()=>{const dt=$('#coachNoteDate').value,txt=$('#coachNoteText').value.trim();if(!dt||!txt){alert('Add a date and coaching note.');return}const items=coachingFor(e);items.push({id:uid(),date:dt,text:txt});saveCoachingFor(e,items);renderAll();showToast('Coaching note added')}}
 function renderTeamOverview(){renderRoster();$('#topActions').style.display='none';$('#topTitle').textContent='Team Overview';$('#topSub').textContent='See who is on track and where manager attention is needed.';const rows=db.employees.map(e=>({e,status:employeeAttention(e),p:activePath(e)})).sort((a,b)=>({action:0,attention:1,good:2}[a.status.level]-{action:0,attention:1,good:2}[b.status.level]));const good=rows.filter(x=>x.status.level==='good').length,att=rows.filter(x=>x.status.level==='attention').length,action=rows.filter(x=>x.status.level==='action').length;$('#content').innerHTML=`<div class="team-summary"><div class="team-summary-card"><label>Employees</label><strong>${rows.length}</strong><span>On your training roster</span></div><div class="team-summary-card good"><label>On Track</label><strong>${good}</strong><span>Training is on course</span></div><div class="team-summary-card attention"><label>Needs Attention</label><strong>${att}</strong><span>Manager follow-up recommended</span></div><div class="team-summary-card action"><label>Action Needed</label><strong>${action}</strong><span>Training has fallen off track</span></div></div><div class="team-panel"><div class="team-panel-head"><div><h3>Team Training Status</h3><p>Prioritized so employees needing the most attention appear first.</p></div></div><div class="team-list">${rows.map(({e,status,p})=>{const c=p?.type==='ongoing'?ongoingConsistency(e,p):null;return`<button class="team-employee-row" data-team-id="${e.id}"><span class="attention-mark ${status.level}"></span><span class="team-person"><b>${esc(e.name)}</b><small>${p?esc(pathName(p.type)):'No training path'}${c?' · '+c.activeWeeks+'/8 weeks active':''}</small></span><span class="team-reason"><b>${status.label}</b><small>${esc(status.reason)}</small></span><span class="team-open">View ›</span></button>`}).join('')||'<div class="activity-empty">Add employees to begin monitoring team training.</div>'}</div></div>`;$$('.team-employee-row').forEach(b=>b.onclick=()=>{window.__teamHome=false;db.activeId=b.dataset.teamId;persist();renderAll()})}
 function renderRoster(){const root=$('#employeeList');if(!db.employees.length){root.innerHTML='<div style="padding:15px 10px;color:#98a2b3;font-size:11px;line-height:1.5">No employees yet. Add your first employee to create a training plan.</div>';return}root.innerHTML=db.employees.map(e=>{const p=activePath(e),pct=pathPct(p),completed=e.paths.filter(pathComplete).length;const ongoing=p?.type==='ongoing';return`<button class="employee-card ${e.id===db.activeId?'active':''}" data-id="${e.id}"><strong>${esc(e.name)}</strong><div class="employee-meta"><span>${p?esc(pathName(p.type)):'No path'}</span><span>${ongoing?'ACTIVE':pct+'%'}</span></div>${ongoing?'':`<div class="mini-progress"><i style="width:${pct}%"></i></div>`}<div style="font-size:9px;color:#98a2b3;margin-top:6px">${e.paths.length} path${e.paths.length===1?'':'s'} · ${ongoing?'open-ended training':completed+' complete'}</div></button>`}).join('');$$('.employee-card').forEach(b=>b.onclick=()=>{window.__teamHome=false;db.activeId=b.dataset.id;persist();renderAll()})}
 function renderAll(){renderRoster();const e=active();if(window.__teamHome&&db.employees.length){renderTeamOverview();return}$('#topActions').style.display=e?'flex':'none';if(!e){$('#topTitle').textContent='Training Manager Dashboard';$('#topSub').textContent='Add an employee to begin building and tracking training.';$('#content').innerHTML='<div class="empty"><div><h3>Build your training roster</h3><p>Add employees, assign training paths, and keep a separate schedule and training history for each person.</p><button class="btn primary" onclick="openEmployeeModal()">+ Add your first employee</button></div></div>';return}renderEmployee(e)}
@@ -322,7 +309,7 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
  }
  const certMilestones=p.type==='cert'?(()=>{const allVideosDone=core.length>0&&core.every(x=>x.completed);const l1Passed=!!p.level1Passed;const l2Passed=!!p.level2Passed;const l1State=l1Passed?'Passed':allVideosDone?'Available':'Locked';const l2State=l2Passed?'Passed':(allVideosDone&&l1Passed)?'Available':'Locked';return `<div class="cert-milestones"><div class="cert-milestones-head"><div><h3>Certification Milestones</h3><p>Certification is gated in order: complete the full video curriculum, pass Level 1, then unlock Level 2.</p></div><span class="status-pill ${l2Passed?'done':'todo'}">${l2Passed?'CERTIFIED':'IN PROGRESS'}</span></div><div class="cert-steps"><div class="cert-step ${allVideosDone?'done':'available'}"><div class="cert-step-num">Milestone 1</div><div class="cert-step-title">Complete Video Curriculum</div><div class="cert-step-copy">Finish all ${core.length} Path to Certification videos.</div><div class="cert-step-status"><span class="cert-state">${allVideosDone?'Complete':completed+' of '+core.length}</span></div></div><div class="cert-step ${l1Passed?'done':allVideosDone?'available':'locked'}"><div class="cert-step-num">Milestone 2</div><div class="cert-step-title">Level 1 Certification</div><div class="cert-step-copy">Level 1 becomes available only after every certification video is complete.</div><div class="cert-step-status"><span class="cert-state">${l1State}</span><button class="cert-pass-btn" id="level1PassBtn" ${allVideosDone?'':'disabled'}>${l1Passed?'Undo Passed':'Mark Passed'}</button></div></div><div class="cert-step ${l2Passed?'done':(allVideosDone&&l1Passed)?'available':'locked'}"><div class="cert-step-num">Milestone 3</div><div class="cert-step-title">Level 2 Certification</div><div class="cert-step-copy">Level 2 unlocks only after the video curriculum is complete and Level 1 is passed.</div><div class="cert-step-status"><span class="cert-state">${l2State}</span><button class="cert-pass-btn" id="level2PassBtn" ${(allVideosDone&&l1Passed)?'':'disabled'}>${l2Passed?'Undo Passed':'Mark Passed'}</button></div></div></div><div class="cert-gate-note">For this prototype, managers record certification results manually. This can later be connected to school/LMS completion data if available.</div></div>`})():'';
  const suppCopy=p.type==='ongoing'?'Add the employee’s weekly training activities. These items build an ongoing engagement history and never create a finish date.':'Add live training alongside the employee’s videos. These items appear in the weekly schedule but <b>do not change</b> the 1-video-per-business-day certification pace.';
- $('#content').innerHTML=`${pathTabs(e)}${banner}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addGroupCallBtn">+ Weekly Group Call</button><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics. Add the specific video or activity the employee should complete.':'<b>Weekly Group Call:</b> choose the recurring weekday and time once; it will populate throughout this training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>${p.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Path notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(p.notes)}</div></div>`:''}${e.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Employee notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(e.notes)}</div></div>`:''}`;
+ $('#content').innerHTML=`${pathTabs(e)}${banner}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addGroupCallBtn">+ Weekly Group Call</button><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics. Add the specific video or activity the employee should complete.':'<b>Weekly Group Call:</b> choose the recurring weekday and time once; it will populate throughout this training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>${p.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Path notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(p.notes)}</div></div>`:''}${e.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Employee notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(e.notes)}</div></div>`:''}`;
  $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;$('#addGroupCallBtn').onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;if(p.type==='cert'){const l1=$('#level1PassBtn'),l2=$('#level2PassBtn');if(l1)l1.onclick=()=>{p.level1Passed=!p.level1Passed;if(!p.level1Passed)p.level2Passed=false;persist();renderAll();showToast(p.level1Passed?'Level 1 marked passed':'Level 1 pass removed')};if(l2)l2.onclick=()=>{p.level2Passed=!p.level2Passed;persist();renderAll();showToast(p.level2Passed?'Level 2 marked passed':'Level 2 pass removed')}}
 }
 function scheduleTable(p){const items=scheduleItems(p);let rows='',lastWeek='',weekIndex=0;for(const ev of items){const wk=weekKey(ev.date);if(wk!==lastWeek){lastWeek=wk;weekIndex++;rows+=`<tr class="week-row"><td colspan="11">${weekLabel(ev.date,weekIndex)}<span>${fmt(mondayOf(ev.date))}</span></td></tr>`}const supplemental=ev.kind!=='video';rows+=`<tr class="${supplemental?'supplemental-row':''}" data-event="${ev.id}" data-kind="${ev.kind}"><td>${ev.generated?esc(fmt(ev.date)):`<input class="ev-date" type="date" value="${esc(ev.date)}">`}</td><td class="video-title">${esc(ev.title)}</td><td class="section-name">${esc(ev.section||'—')}</td><td><span class="type-pill ${typeClass(ev.kind)}">${typeLabel(ev.kind)}</span></td><td class="runtime">${esc(ev.duration||'—')}</td><td>${esc(ev.time||'—')}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-complete" type="checkbox" ${ev.completed?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-fix" type="checkbox" ${ev.fixMyCall?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-trainer" type="checkbox" ${ev.callTrainer?'checked':''}>`}</td><td>${ev.generated?(ev.recurringCustom?'Recurring custom item':'Recurring call'):`<input class="notes ev-notes" type="text" placeholder="Add a note..." value="${esc(ev.notes)}">`}</td><td>${ev.generated?(ev.recurringCustom?`<button class="icon ev-delete-custom-rec" data-config="${ev.configId}" title="Remove recurring custom training item">×</button>`:`<button class="icon ev-delete-call" data-config="${ev.configId}" title="Remove recurring weekly call">×</button>`):`<button class="icon ev-delete" title="Delete">×</button>`}</td></tr>`}return`<table class="schedule"><thead><tr><th>Date</th><th>Training / Video</th><th>Section</th><th>Type</th><th>Runtime</th><th>Time</th><th>Completed</th><th>Fix My Call</th><th>Call a Trainer</th><th>Notes</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="11" style="padding:24px;color:#98a2b3">No training scheduled yet.</td></tr>'}</tbody></table>`}
@@ -1152,148 +1139,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 })();
 </script>
 
-<script id="activity-coaching-v10-js">
-(function(){
-  const NOTE_KEY="sf_manager_coaching_notes_v10";
 
-  function getDB(){
-    try{return JSON.parse(localStorage.getItem(NOTE_KEY)||"{}")}catch(e){return {}}
-  }
-  function saveDB(x){localStorage.setItem(NOTE_KEY,JSON.stringify(x))}
-  function currentEmployee(){
-    try{
-      if(window.db && Array.isArray(db.employees)){
-        return db.employees.find(e=>e.id===db.activeId) || db.employees[0] || null;
-      }
-    }catch(e){}
-    return null;
-  }
-  function empKey(){
-    const e=currentEmployee();
-    return e ? String(e.id||e.name||"employee") : "default";
-  }
-  function fmtDate(v){
-    const d=new Date((v||"")+"T12:00:00");
-    return isNaN(d.getTime())?String(v||""):d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
-  }
-
-  function stripCoachingFromRecentActivity(){
-    document.querySelectorAll(".recent-activity,.activity-card,.recent-activity-card,[data-recent-activity]").forEach(card=>{
-      card.querySelectorAll("li,.activity-item,.timeline-item,div").forEach(item=>{
-        const t=(item.textContent||"").toLowerCase();
-        if(t.includes("coaching note") || t.includes("manager note")){
-          item.remove();
-        }
-      });
-    });
-  }
-
-  function collapseRecentActivity(){
-    const cards=[...document.querySelectorAll(".recent-activity,.activity-card,.recent-activity-card,[data-recent-activity]")];
-    cards.forEach(card=>{
-      const title=(card.textContent||"").toLowerCase();
-      if(!title.includes("recent activity")) return;
-
-      const list = card.querySelector("ul,ol,.activity-list,.timeline,.recent-activity-list") || card;
-      const items=[...list.children].filter(el=>{
-        const t=(el.textContent||"").trim();
-        return t && !/recent activity|show more|show less/i.test(t);
-      });
-
-      items.forEach((el,i)=>{
-        el.classList.toggle("activity-extra-v10", i>=5);
-      });
-
-      list.classList.add("activity-list-v10");
-
-      let btn=card.querySelector(".activity-toggle-v10");
-      if(items.length>5){
-        if(!btn){
-          btn=document.createElement("button");
-          btn.type="button";
-          btn.className="activity-toggle-v10";
-          card.appendChild(btn);
-        }
-        const expanded=list.classList.contains("expanded");
-        btn.textContent=expanded?`Show Less`:`Show More (${items.length-5})`;
-        btn.onclick=function(){
-          list.classList.toggle("expanded");
-          collapseRecentActivity();
-        };
-      }else if(btn){
-        btn.remove();
-      }
-    });
-  }
-
-  function notes(){
-    const all=getDB();
-    return Array.isArray(all[empKey()])?all[empKey()]:[];
-  }
-
-  function addNote(){
-    const today=new Date().toISOString().slice(0,10);
-    const date=prompt("Note date (YYYY-MM-DD):",today);
-    if(!date)return;
-    const note=prompt("Manager coaching note:","");
-    if(!note || !note.trim())return;
-
-    const all=getDB(), k=empKey();
-    all[k]=all[k]||[];
-    all[k].push({date:date,text:note.trim(),createdAt:Date.now()});
-    all[k].sort((a,b)=>String(b.date).localeCompare(String(a.date)) || (b.createdAt||0)-(a.createdAt||0));
-    saveDB(all);
-    renderCoaching();
-  }
-
-  function renderCoaching(){
-    let host=document.getElementById("coachingNotesV10");
-    if(!host){
-      const recent=[...document.querySelectorAll("h1,h2,h3,h4,div")].find(el=>{
-        return /^recent activity/i.test((el.textContent||"").trim());
-      });
-      if(!recent)return;
-      const card=recent.closest(".card,.panel,.recent-activity,.activity-card")||recent.parentElement;
-      if(!card)return;
-      host=document.createElement("section");
-      host.id="coachingNotesV10";
-      host.className="coaching-card-v10";
-      card.insertAdjacentElement("afterend",host);
-    }
-
-    const list=notes();
-    host.innerHTML=`
-      <div class="coaching-head-v10">
-        <div>
-          <div class="coaching-title-v10">Coaching Notes</div>
-          <div style="font-size:11px;color:#718196;margin-top:2px">Manager notes for this employee</div>
-        </div>
-        <button type="button" class="coaching-add-v10" id="addCoachingNoteV10">+ Add Note</button>
-      </div>
-      <div class="coaching-notes-v10">
-        ${list.length ? list.map(n=>`
-          <div class="coaching-note-v10">
-            <div class="date">${fmtDate(n.date)}</div>
-            <div class="text">${String(n.text||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}</div>
-          </div>`).join("") : '<div class="coaching-empty-v10">No coaching notes yet.</div>'}
-      </div>`;
-    document.getElementById("addCoachingNoteV10")?.addEventListener("click",addNote);
-  }
-
-  function run(){
-    stripCoachingFromRecentActivity();
-    collapseRecentActivity();
-    renderCoaching();
-  }
-
-  document.addEventListener("DOMContentLoaded",()=>setTimeout(run,200));
-  document.addEventListener("click",()=>setTimeout(run,80),true);
-  new MutationObserver(()=>{
-    clearTimeout(window.__activityV10);
-    window.__activityV10=setTimeout(run,60);
-  }).observe(document.documentElement,{childList:true,subtree:true});
-})();
-</script>
 
 </body>
 </html>
