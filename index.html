@@ -1214,11 +1214,25 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
   function escR(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
   function secR(v){
     if(v==null)return 0;
-    if(typeof v==="number")return v;
-    const p=String(v).trim().split(":").map(Number);
-    if(p.some(isNaN))return 0;
-    if(p.length===3)return p[0]*3600+p[1]*60+p[2];
-    if(p.length===2)return p[0]*60+p[1];
+    if(typeof v==="number" && isFinite(v))return v;
+    const s=String(v).trim();
+    if(!s)return 0;
+
+    // HH:MM:SS
+    let m=s.match(/^(\d+):(\d{2}):(\d{2})$/);
+    if(m)return Number(m[1])*3600+Number(m[2])*60+Number(m[3]);
+
+    // MM:SS
+    m=s.match(/^(\d+):(\d{2})$/);
+    if(m)return Number(m[1])*60+Number(m[2]);
+
+    // Common text fallbacks, in case older saved data still contains them.
+    m=s.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/);
+    if(m)return Math.round(Number(m[1])*3600);
+
+    m=s.toLowerCase().match(/^(\d+)\s*(m|min|mins|minute|minutes)$/);
+    if(m)return Number(m[1])*60;
+
     return 0;
   }
   function durR(n){
@@ -1295,7 +1309,11 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     emps.forEach(e=>reportRows(e,start,end).forEach(x=>all.push({...x,employee:e.name||"Employee"})));
 
     const videos=all.filter(x=>String(x.type).toLowerCase()==="video");
-    const live=all.filter(x=>/group|webinar|workshop|live/i.test(String(x.type)));
+    const live=all.filter(x=>{
+      const type=String(x.type||"").toLowerCase();
+      const title=String(x.title||"").toLowerCase();
+      return /group|call|webinar|workshop|live/.test(type+" "+title);
+    });
     const videoTime=videos.reduce((s,x)=>s+x.seconds,0);
     const liveTime=live.reduce((s,x)=>s+x.seconds,0);
 
