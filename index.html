@@ -85,6 +85,13 @@
 .path-guidance-v7{margin:8px 0 2px;padding:8px 10px;border-radius:8px;background:#f7f9fc;color:#63758a;font-size:11px;line-height:1.4}
 </style>
 
+
+<style id="ongoing-schedule-columns-v8">
+/* Ongoing Training: hide Fix My Call and Call a Trainer columns from the schedule table only. */
+.ongoing-schedule-v8 th.ot-hide-v8,
+.ongoing-schedule-v8 td.ot-hide-v8{display:none!important}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1054,6 +1061,44 @@ document.addEventListener("DOMContentLoaded",()=>setTimeout(install,300));docume
   document.addEventListener("DOMContentLoaded",function(){setTimeout(enhance,100)});
   document.addEventListener("click",function(){setTimeout(enhance,50)},true);
   new MutationObserver(enhance).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
+
+<script id="ongoing-schedule-columns-v8-js">
+(function(){
+  function txt(el){return (el&&el.textContent||"").replace(/\s+/g," ").trim()}
+  function findOngoingScheduleTable(){
+    var roots=[...document.querySelectorAll("section,div")].filter(el=>{
+      var t=txt(el);
+      return /Ongoing Training/i.test(t) && /Training Schedule/i.test(t);
+    });
+    for(var i=roots.length-1;i>=0;i--){
+      var table=roots[i].querySelector("table");
+      if(table)return table;
+    }
+    return null;
+  }
+  function simplify(){
+    var table=findOngoingScheduleTable();
+    if(!table)return;
+    table.classList.add("ongoing-schedule-v8");
+    var headers=[...table.querySelectorAll("thead th")];
+    headers.forEach(function(th,idx){
+      var t=txt(th).toLowerCase();
+      if(t==="fix my call" || t==="call a trainer"){
+        th.classList.add("ot-hide-v8");
+        table.querySelectorAll("tbody tr").forEach(function(tr){
+          var cells=tr.children;
+          if(cells[idx])cells[idx].classList.add("ot-hide-v8");
+        });
+      }
+    });
+  }
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(simplify,150));
+  document.addEventListener("click",()=>setTimeout(simplify,80),true);
+  new MutationObserver(()=>{clearTimeout(window.__otcolv8);window.__otcolv8=setTimeout(simplify,50)})
+    .observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
