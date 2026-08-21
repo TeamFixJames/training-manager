@@ -71,6 +71,29 @@
 <style id="ongoing-engagement-v2">
 .ot-engagement{margin:14px 0 18px}.ot-week-summary,.ot-tool-card{border:1px solid #dce5ef;border-radius:12px;padding:14px 16px;background:#fff}.ot-week-head,.ot-tool-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.ot-week-title,.ot-tool-name,.ot-tools-title,.ot-schedule-label{font-weight:800;color:#183550}.ot-status{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:#eef3f8;color:#61758a}.ot-status.active{background:#e9f7ef;color:#28784b}.ot-metrics{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:8px;margin-top:12px}.ot-metric{background:#f7f9fc;border-radius:9px;padding:9px 10px}.ot-metric b{display:block;font-size:17px;color:#183550}.ot-metric span,.ot-tool-sub,.ot-limit,.ot-history{font-size:11px;color:#718196}.ot-metric span{text-transform:uppercase}.ot-tools-title{font-size:13px;margin:15px 0 8px}.ot-tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ot-dots{font-size:18px;letter-spacing:3px;margin:8px 0 4px}.ot-limit{margin-bottom:9px}.ot-log-btn{border:0;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;background:#173a5e;color:#fff}.ot-log-btn:disabled{opacity:.45}.ot-history{margin-top:9px}.ot-schedule-label{font-size:13px;margin:18px 0 6px}@media(max-width:900px){.ot-metrics{grid-template-columns:repeat(2,1fr)}.ot-tool-grid{grid-template-columns:1fr}}
 </style>
+
+<style id="ongoing-layout-v5">
+/* Compact Ongoing Training intro */
+.ot-compact-intro-v5{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:4px 0 12px;margin-bottom:2px;
+}
+.ot-compact-intro-v5 .ot-copy-v5{min-width:0}
+.ot-compact-intro-v5 .ot-desc-v5{font-size:12px;color:#61758a;margin-top:3px}
+.ot-compact-intro-v5 .ot-badge-v5{
+  flex:0 0 auto;font-size:11px;font-weight:800;padding:6px 10px;border-radius:999px;
+  background:#eef4fb;color:#315f91;white-space:nowrap
+}
+/* Overview becomes four useful cards */
+.ot-overview-four-v5{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+/* Hide the old explanatory weekly-engagement banner only in Ongoing Training */
+.ot-old-banner-hidden-v5{display:none!important}
+@media(max-width:900px){
+  .ot-overview-four-v5{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .ot-compact-intro-v5{flex-direction:column;gap:7px}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1006,5 +1029,85 @@ function install(){if(document.getElementById("otEngagementV2"))return;let title
 document.addEventListener("DOMContentLoaded",()=>setTimeout(install,300));document.addEventListener("click",()=>setTimeout(()=>{install();render()},100),true);new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
+
+<script id="ongoing-layout-v5-script">
+(function(){
+ function txt(el){return (el&&el.textContent||"").replace(/\s+/g," ").trim()}
+ function findOngoingRoot(){
+   var hs=[...document.querySelectorAll("h1,h2,h3,h4")].filter(h=>/^ongoing training$/i.test(txt(h)));
+   var h=hs[hs.length-1]; if(!h)return null;
+   return h.closest(".path-card,.training-path,.card,.panel")||h.parentElement;
+ }
+ function cardsIn(root){
+   return [...root.querySelectorAll("div")].filter(el=>{
+     var t=txt(el);
+     return /^(STATUS|STARTED|THIS WEEK|NEXT TRAINING|LAST 30 DAYS)\b/i.test(t) &&
+       el.children.length>0 && t.length<180;
+   });
+ }
+ function apply(){
+   var root=findOngoingRoot(); if(!root)return;
+
+   // Compact intro directly beneath/alongside the Ongoing Training heading.
+   var heading=[...root.querySelectorAll("h1,h2,h3,h4")].find(h=>/^ongoing training$/i.test(txt(h)));
+   if(heading && !root.querySelector(".ot-compact-intro-v5")){
+     var intro=document.createElement("div");
+     intro.className="ot-compact-intro-v5";
+     intro.innerHTML='<div class="ot-copy-v5"><div class="ot-desc-v5">Build a consistent weekly training habit through school videos, live training, and practice activities.</div></div><span class="ot-badge-v5">Ongoing · No End Date</span>';
+     heading.insertAdjacentElement("afterend",intro);
+   }
+
+   // Remove/hide old large Weekly engagement explanatory banner.
+   [...root.querySelectorAll("div")].forEach(el=>{
+     var t=txt(el);
+     if(/^Weekly engagement\b/i.test(t) &&
+        /Ongoing Training has no completion percentage/i.test(t) &&
+        t.length<500){
+       el.classList.add("ot-old-banner-hidden-v5");
+     }
+   });
+
+   // Locate overview card row and remove the redundant STATUS card.
+   var status=[...root.querySelectorAll("div")].find(el=>{
+     var t=txt(el);
+     return /^STATUS\s+Active\s+Open-ended training$/i.test(t) ||
+            (/^STATUS\b/i.test(t)&&/Open-ended training/i.test(t)&&t.length<120);
+   });
+   if(status){
+     // Walk upward only until we reach the direct card-sized element.
+     var card=status;
+     while(card.parentElement && card.parentElement!==root &&
+           card.parentElement.children.length<=2 &&
+           txt(card.parentElement).length<160){
+       card=card.parentElement;
+     }
+     card.style.display="none";
+     var row=card.parentElement;
+     if(row) row.classList.add("ot-overview-four-v5");
+   }
+
+   // Ensure overview appears before the detailed engagement block.
+   var engagement=root.querySelector("#otEngagementV2");
+   if(engagement){
+     var overview=null;
+     [...root.querySelectorAll("div")].some(el=>{
+       var t=txt(el);
+       if(/STARTED/i.test(t)&&/THIS WEEK/i.test(t)&&/NEXT TRAINING/i.test(t)&&/LAST 30 DAYS/i.test(t)&&el.children.length>=4){
+         overview=el; return true;
+       }
+       return false;
+     });
+     if(overview && overview.compareDocumentPosition(engagement)&Node.DOCUMENT_POSITION_PRECEDING){
+       engagement.parentNode.insertBefore(overview,engagement);
+     }
+   }
+ }
+ document.addEventListener("DOMContentLoaded",()=>setTimeout(apply,250));
+ document.addEventListener("click",()=>setTimeout(apply,100),true);
+ new MutationObserver(()=>{clearTimeout(window.__otv5);window.__otv5=setTimeout(apply,60)})
+   .observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
 </body>
 </html>
