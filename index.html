@@ -129,6 +129,12 @@
 @media(max-width:900px){.reports-toolbar-v16{grid-template-columns:1fr 1fr}.report-summary-v16{grid-template-columns:repeat(2,1fr)}}
 </style>
 
+
+<style id="live-training-v17-css">
+.live-duration-help-v17{font-size:10px;color:#718196;margin-top:4px}
+.group-complete-v17{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#4f6278}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1304,6 +1310,165 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     const reports=document.getElementById("reportsBtnV16");
     if(reports)reports.onclick=renderReports;
   });
+})();
+</script>
+
+
+<script id="live-training-v17-js">
+(function(){
+  function normalizeDurationInput(v){
+    if(v==null)return "";
+    let s=String(v).trim().toLowerCase();
+    if(!s)return "";
+
+    // hh:mm:ss
+    if(/^\d+:\d{2}:\d{2}$/.test(s)) return s;
+
+    // h:mm
+    if(/^\d+:\d{2}$/.test(s)){
+      const [a,b]=s.split(":").map(Number);
+      // Treat values >= 60 in the first segment as minutes:seconds.
+      if(a>=60) return "00:"+String(a).padStart(2,"0")+":"+String(b).padStart(2,"0");
+      return String(a).padStart(2,"0")+":"+String(b).padStart(2,"0")+":00";
+    }
+
+    // 90m / 90 min / 90 minutes
+    let m=s.match(/^(\d+)\s*(m|min|mins|minute|minutes)$/);
+    if(m){
+      let total=Number(m[1]),h=Math.floor(total/60),min=total%60;
+      return String(h).padStart(2,"0")+":"+String(min).padStart(2,"0")+":00";
+    }
+
+    // 1h / 1 hr / 1 hour / 1.5 hours
+    m=s.match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/);
+    if(m){
+      let total=Math.round(Number(m[1])*3600),h=Math.floor(total/3600),min=Math.floor((total%3600)/60),sec=total%60;
+      return String(h).padStart(2,"0")+":"+String(min).padStart(2,"0")+":"+String(sec).padStart(2,"0");
+    }
+
+    // "1 hour 30 minutes"
+    m=s.match(/^(\d+)\s*(?:h|hr|hrs|hour|hours)\s*(\d+)\s*(?:m|min|mins|minute|minutes)$/);
+    if(m){
+      return String(Number(m[1])).padStart(2,"0")+":"+String(Number(m[2])).padStart(2,"0")+":00";
+    }
+
+    return null;
+  }
+
+  function patchWebinarDuration(){
+    // Find duration inputs in webinar/workshop modals and guide/validate them.
+    document.querySelectorAll(".modal,.dialog,[role='dialog']").forEach(modal=>{
+      const txt=(modal.textContent||"").toLowerCase();
+      if(!(txt.includes("webinar")||txt.includes("workshop")))return;
+
+      const inputs=[...modal.querySelectorAll('input[type="text"],input:not([type])')];
+      inputs.forEach(inp=>{
+        const context=((inp.id||"")+" "+(inp.name||"")+" "+(inp.placeholder||"")).toLowerCase();
+        if(!context.includes("duration") && !context.includes("runtime") && !context.includes("length"))return;
+
+        inp.placeholder="01:00:00";
+        if(!inp.nextElementSibling || !inp.nextElementSibling.classList.contains("live-duration-help-v17")){
+          const help=document.createElement("div");
+          help.className="live-duration-help-v17";
+          help.textContent="Enter duration as HH:MM:SS (example: 01:00:00 for one hour).";
+          inp.insertAdjacentElement("afterend",help);
+        }
+      });
+    });
+  }
+
+  function interceptWebinarSave(e){
+    const btn=e.target.closest("button");
+    if(!btn)return;
+    const modal=btn.closest(".modal,.dialog,[role='dialog']");
+    if(!modal)return;
+    const txt=(modal.textContent||"").toLowerCase();
+    if(!(txt.includes("webinar")||txt.includes("workshop")))return;
+    if(!/save|add|create/i.test(btn.textContent||""))return;
+
+    const inputs=[...modal.querySelectorAll('input[type="text"],input:not([type])')];
+    const dur=inputs.find(inp=>{
+      const c=((inp.id||"")+" "+(inp.name||"")+" "+(inp.placeholder||"")).toLowerCase();
+      return c.includes("duration")||c.includes("runtime")||c.includes("length")||inp.placeholder==="01:00:00";
+    });
+    if(!dur)return;
+
+    const normalized=normalizeDurationInput(dur.value);
+    if(dur.value.trim() && normalized===null){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      alert("Enter the duration as HH:MM:SS. Example: 01:00:00 for one hour.");
+      dur.focus();
+      return;
+    }
+    if(normalized)dur.value=normalized;
+  }
+
+  function ensureGroupCallCompletion(){
+    document.querySelectorAll("tr,.schedule-row,.training-row").forEach(row=>{
+      const txt=(row.textContent||"").toLowerCase();
+      if(!txt.includes("weekly group call"))return;
+      if(row.querySelector(".group-complete-v17"))return;
+
+      // Use the normal Completed column if one exists; otherwise append a compact control.
+      const ths=[...row.closest("table")?.querySelectorAll("thead th")||[]];
+      let idx=ths.findIndex(th=>(th.textContent||"").trim().toLowerCase()==="completed");
+      if(idx>=0 && row.children[idx]){
+        const cell=row.children[idx];
+        if(!cell.querySelector('input[type="checkbox"]')){
+          const cb=document.createElement("input");
+          cb.type="checkbox";
+          cb.className="group-call-complete-v17";
+          cell.appendChild(cb);
+        }
+        return;
+      }
+
+      const cell=document.createElement("td");
+      cell.className="group-complete-v17";
+      cell.innerHTML='<label class="group-complete-v17"><input type="checkbox" class="group-call-complete-v17"> Completed</label>';
+      row.appendChild(cell);
+    });
+  }
+
+  document.addEventListener("change",function(e){
+    const cb=e.target.closest(".group-call-complete-v17");
+    if(!cb)return;
+    const row=cb.closest("tr,.schedule-row,.training-row");
+    if(!row)return;
+
+    // Try to map the visible Weekly Group Call row back to the underlying event.
+    const dateInput=row.querySelector('input[type="date"]');
+    const date=dateInput?dateInput.value:"";
+    try{
+      if(window.db && Array.isArray(db.employees)){
+        const emp=db.employees.find(x=>x.id===db.activeId)||db.employees[0];
+        const path=typeof activePath==="function"?activePath(emp):(emp.paths||[]).slice(-1)[0];
+        if(path && Array.isArray(path.events)){
+          let matches=path.events.filter(x=>String(x.title||"").toLowerCase().includes("weekly group call"));
+          if(date)matches=matches.filter(x=>x.date===date);
+          if(matches[0]){
+            matches[0].completed=cb.checked;
+            if(typeof persist==="function")persist();
+          }
+        }
+      }
+    }catch(err){console.warn("Could not persist group-call completion",err)}
+  },true);
+
+  document.addEventListener("click",function(e){
+    interceptWebinarSave(e);
+    setTimeout(()=>{patchWebinarDuration();ensureGroupCallCompletion()},50);
+  },true);
+
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(()=>{patchWebinarDuration();ensureGroupCallCompletion()},250);
+  });
+
+  new MutationObserver(()=>{
+    clearTimeout(window.__liveV17);
+    window.__liveV17=setTimeout(()=>{patchWebinarDuration();ensureGroupCallCompletion()},80);
+  }).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
