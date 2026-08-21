@@ -122,6 +122,22 @@
 @media(max-width:900px){.reports-toolbar-v12{grid-template-columns:1fr 1fr}.report-summary-v12{grid-template-columns:repeat(2,1fr)}}
 </style>
 
+
+<style id="manager-nav-v13-css">
+.manager-nav-v13{
+  display:flex;gap:8px;align-items:center;margin:0 0 14px;
+  padding:8px;background:#f4f7fb;border:1px solid #dce5ef;border-radius:12px
+}
+.manager-nav-v13 button{
+  border:0;background:transparent;color:#52667d;font-weight:800;
+  padding:9px 12px;border-radius:8px;cursor:pointer
+}
+.manager-nav-v13 button.active{background:#173a5e;color:#fff}
+.manager-view-v13{display:none}
+.manager-view-v13.active{display:block}
+#reportsManagerViewV13 .panel{margin-top:0}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1155,65 +1171,199 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 
 
 
-<script id="reports-v12-js">
-(function(){
- function sec(v){
-   if(v==null)return 0; if(typeof v==="number")return v;
-   let s=String(v).trim(),p=s.split(":").map(Number);
-   if(p.some(isNaN))return 0;
-   if(p.length===3)return p[0]*3600+p[1]*60+p[2];
-   if(p.length===2)return p[0]*60+p[1];
-   return p.length===1?p[0]*60:0
- }
- function dur(n){n=Math.max(0,Math.round(n||0));let h=Math.floor(n/3600),m=Math.floor((n%3600)/60);return h?(h+"h "+m+"m"):(m+"m")}
- function esc2(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
- function employees(){try{return window.db&&Array.isArray(db.employees)?db.employees:[]}catch(e){return[]}}
- function engagement(e){try{return typeof engagementFor==="function"?engagementFor(e):{fix:[],trainer:[]}}catch(x){return{fix:[],trainer:[]}}}
- function activity(e,start,end){
-   let a=[];
-   for(const p of e.paths||[]){
-     for(const x of [...(p.events||[]),...(p.webinars||[])]){
-       if(!x.completed||!x.date||x.date<start||x.date>end)continue;
-       let type=String(x.kind||x.type||"training").toLowerCase();
-       let runtime=x.runtime||x.duration||x.length||"";
-       a.push({date:x.date,title:x.title||"Training",library:x.library||x.section||"",type:type,runtime:runtime,seconds:sec(runtime)})
-     }
-   }
-   let en=engagement(e);
-   for(const x of en.fix||[])if(x.date>=start&&x.date<=end)a.push({date:x.date,title:"Fix My Call",library:"Engagement",type:"fix my call",runtime:"",seconds:0});
-   for(const x of en.trainer||[])if(x.date>=start&&x.date<=end)a.push({date:x.date,title:"Call a Trainer",library:"Engagement",type:"call a trainer",runtime:"",seconds:0});
-   return a.sort((x,y)=>String(y.date).localeCompare(String(x.date)))
- }
- function ensure(){
-   if(document.getElementById("reportsV12"))return;
-   let content=document.getElementById("content")||document.querySelector("main");
-   if(!content)return;
-   let panel=document.createElement("div");panel.id="reportsV12";panel.className="panel reports-v12";panel.style.display="none";
-   panel.innerHTML=`<div class="activity-panel-head"><div><h3>Employee Training Reports</h3><p>Select a date range and review completed training and engagement activity.</p></div></div>
-   <div class="reports-toolbar-v12"><div><label>Start Date</label><input id="reportStartV12" type="date"></div><div><label>End Date</label><input id="reportEndV12" type="date"></div><div><label>Employee</label><select id="reportEmpV12"></select></div><div class="report-actions-v12"><button class="btn primary" id="runReportV12">Generate Report</button><button class="btn" id="csvReportV12">Export CSV</button></div></div><div id="reportOutputV12"></div>`;
-   content.prepend(panel);
 
-   let nav=document.querySelector(".top-actions,.header-actions,.toolbar");
-   if(nav&&!document.getElementById("reportsBtnV12")){let b=document.createElement("button");b.id="reportsBtnV12";b.className="btn";b.textContent="Reports";nav.appendChild(b);b.onclick=()=>{panel.style.display=panel.style.display==="none"?"block":"none";populate()}}
-   let now=new Date(),start=new Date();start.setDate(1);panel.querySelector("#reportStartV12").value=start.toISOString().slice(0,10);panel.querySelector("#reportEndV12").value=now.toISOString().slice(0,10);
-   panel.querySelector("#runReportV12").onclick=run;panel.querySelector("#csvReportV12").onclick=csv;populate()
- }
- function populate(){let s=document.getElementById("reportEmpV12");if(!s)return;let prev=s.value;s.innerHTML='<option value="all">All Employees</option>'+employees().map(e=>`<option value="${esc2(e.id)}">${esc2(e.name||"Employee")}</option>`).join("");if([...s.options].some(o=>o.value===prev))s.value=prev}
- function chosen(){let v=document.getElementById("reportEmpV12").value,all=employees();return v==="all"?all:all.filter(e=>String(e.id)===v)}
- function run(){
-   let st=document.getElementById("reportStartV12").value,en=document.getElementById("reportEndV12").value,o=document.getElementById("reportOutputV12");if(!st||!en){alert("Choose a start and end date.");return}
-   let es=chosen(),all=[];es.forEach(e=>activity(e,st,en).forEach(x=>all.push({...x,employee:e.name||"Employee"})));
-   let video=all.filter(x=>/video|training/.test(x.type)&&!/group|webinar|workshop|custom/.test(x.type)),videoSec=video.reduce((s,x)=>s+x.seconds,0),live=all.filter(x=>/group|webinar|workshop|live/.test(x.type)),liveSec=live.reduce((s,x)=>s+x.seconds,0);
-   o.innerHTML=`<div class="report-summary-v12"><div class="report-stat-v12"><b>${es.length}</b><span>Employees</span></div><div class="report-stat-v12"><b>${video.length}</b><span>Videos Completed</span></div><div class="report-stat-v12"><b>${dur(videoSec)}</b><span>Video Training Time</span></div><div class="report-stat-v12"><b>${live.length}</b><span>Live Activities</span></div><div class="report-stat-v12"><b>${dur(liveSec)}</b><span>Live Training Time</span></div></div>`+
-   es.map(e=>{let rows=activity(e,st,en),vs=rows.filter(x=>/video|training/.test(x.type)&&!/group|webinar|workshop|custom/.test(x.type)),secs=vs.reduce((s,x)=>s+x.seconds,0);return`<div class="report-emp-v12"><div class="report-emp-head-v12">${esc2(e.name||"Employee")} · ${rows.length} activities · ${vs.length} videos · ${dur(secs)} video time</div>${rows.length?`<table class="report-table-v12"><thead><tr><th>Date</th><th>Activity</th><th>Library / Section</th><th>Type</th><th>Runtime</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc2(x.date)}</td><td>${esc2(x.title)}</td><td>${esc2(x.library)}</td><td>${esc2(x.type)}</td><td>${esc2(x.runtime||"—")}</td></tr>`).join("")}</tbody></table>`:'<div class="report-empty-v12">No recorded activity in this date range.</div>'}</div>`}).join("")
- }
- function csv(){
-   let st=document.getElementById("reportStartV12").value,en=document.getElementById("reportEndV12").value;if(!st||!en)return;
-   let rows=[["Employee","Date","Activity","Library / Section","Type","Runtime","Runtime Seconds"]];
-   chosen().forEach(e=>activity(e,st,en).forEach(x=>rows.push([e.name||"Employee",x.date,x.title,x.library,x.type,x.runtime,x.seconds])));
-   let q=v=>'"'+String(v??"").replace(/"/g,'""')+'"',blob=new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`training-report-${st}-to-${en}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)
- }
- document.addEventListener("DOMContentLoaded",()=>setTimeout(ensure,250));document.addEventListener("click",()=>setTimeout(()=>{ensure();populate()},80),true)
+
+
+<script id="manager-reports-v13-js">
+(function(){
+  function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+  function seconds(v){
+    if(v==null)return 0;
+    if(typeof v==="number")return v;
+    const s=String(v).trim(), p=s.split(":").map(Number);
+    if(p.some(isNaN))return 0;
+    if(p.length===3)return p[0]*3600+p[1]*60+p[2];
+    if(p.length===2)return p[0]*60+p[1];
+    return p.length===1?p[0]*60:0;
+  }
+  function duration(n){
+    n=Math.max(0,Math.round(n||0));
+    const h=Math.floor(n/3600),m=Math.floor((n%3600)/60);
+    return h?(h+"h "+m+"m"):(m+"m");
+  }
+  function employees(){
+    try{return window.db&&Array.isArray(db.employees)?db.employees:[]}catch(e){return[]}
+  }
+  function engagement(e){
+    try{return typeof engagementFor==="function"?engagementFor(e):{fix:[],trainer:[]}}catch(e){return{fix:[],trainer:[]}}
+  }
+  function activities(e,start,end){
+    const rows=[];
+    for(const p of e.paths||[]){
+      for(const x of [...(p.events||[]),...(p.webinars||[])]){
+        if(!x.completed||!x.date||x.date<start||x.date>end)continue;
+        const type=String(x.kind||x.type||"training").toLowerCase();
+        const runtime=x.runtime||x.duration||x.length||"";
+        rows.push({
+          date:x.date,title:x.title||"Training",
+          library:x.library||x.section||"",
+          type:type,runtime:runtime,seconds:seconds(runtime)
+        });
+      }
+    }
+    const en=engagement(e);
+    for(const x of en.fix||[]) if(x.date>=start&&x.date<=end)
+      rows.push({date:x.date,title:"Fix My Call",library:"Engagement",type:"fix my call",runtime:"",seconds:0});
+    for(const x of en.trainer||[]) if(x.date>=start&&x.date<=end)
+      rows.push({date:x.date,title:"Call a Trainer",library:"Engagement",type:"call a trainer",runtime:"",seconds:0});
+    return rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  }
+
+  function buildReportsView(){
+    let view=document.getElementById("reportsManagerViewV13");
+    if(view)return view;
+
+    const content=document.getElementById("content");
+    if(!content)return null;
+
+    view=document.createElement("div");
+    view.id="reportsManagerViewV13";
+    view.className="manager-view-v13";
+    view.innerHTML=`
+      <div class="panel">
+        <div class="activity-panel-head">
+          <div><h3>Employee Training Reports</h3>
+          <p>Select a date range and review completed training and engagement activity.</p></div>
+        </div>
+        <div class="reports-toolbar-v12">
+          <div><label>Start Date</label><input id="reportStartV13" type="date"></div>
+          <div><label>End Date</label><input id="reportEndV13" type="date"></div>
+          <div><label>Employee</label><select id="reportEmpV13"></select></div>
+          <div class="report-actions-v12">
+            <button class="btn primary" id="runReportV13">Generate Report</button>
+            <button class="btn" id="csvReportV13">Export CSV</button>
+          </div>
+        </div>
+        <div id="reportOutputV13"></div>
+      </div>`;
+    content.parentNode.insertBefore(view,content.nextSibling);
+
+    const now=new Date(), start=new Date(now.getFullYear(),now.getMonth(),1);
+    view.querySelector("#reportStartV13").value=start.toISOString().slice(0,10);
+    view.querySelector("#reportEndV13").value=now.toISOString().slice(0,10);
+    view.querySelector("#runReportV13").onclick=runReport;
+    view.querySelector("#csvReportV13").onclick=exportCSV;
+    populateEmployees();
+    return view;
+  }
+
+  function populateEmployees(){
+    const s=document.getElementById("reportEmpV13");
+    if(!s)return;
+    const prev=s.value;
+    s.innerHTML='<option value="all">All Employees</option>'+
+      employees().map(e=>`<option value="${esc(e.id)}">${esc(e.name||"Employee")}</option>`).join("");
+    if([...s.options].some(o=>o.value===prev))s.value=prev;
+  }
+
+  function chosenEmployees(){
+    const s=document.getElementById("reportEmpV13");
+    const all=employees();
+    return !s||s.value==="all"?all:all.filter(e=>String(e.id)===s.value);
+  }
+
+  function runReport(){
+    const st=document.getElementById("reportStartV13").value;
+    const en=document.getElementById("reportEndV13").value;
+    const out=document.getElementById("reportOutputV13");
+    if(!st||!en){alert("Choose a start and end date.");return}
+
+    const es=chosenEmployees();
+    let all=[];
+    es.forEach(e=>activities(e,st,en).forEach(x=>all.push({...x,employee:e.name||"Employee"})));
+
+    const videos=all.filter(x=>/video|training/.test(x.type)&&!/group|webinar|workshop|custom/.test(x.type));
+    const live=all.filter(x=>/group|webinar|workshop|live/.test(x.type));
+    const videoSec=videos.reduce((s,x)=>s+x.seconds,0);
+    const liveSec=live.reduce((s,x)=>s+x.seconds,0);
+
+    out.innerHTML=`
+      <div class="report-summary-v12">
+        <div class="report-stat-v12"><b>${es.length}</b><span>Employees</span></div>
+        <div class="report-stat-v12"><b>${videos.length}</b><span>Videos Completed</span></div>
+        <div class="report-stat-v12"><b>${duration(videoSec)}</b><span>Video Training Time</span></div>
+        <div class="report-stat-v12"><b>${live.length}</b><span>Live Activities</span></div>
+        <div class="report-stat-v12"><b>${duration(liveSec)}</b><span>Live Training Time</span></div>
+      </div>`+
+      es.map(e=>{
+        const rows=activities(e,st,en);
+        const vs=rows.filter(x=>/video|training/.test(x.type)&&!/group|webinar|workshop|custom/.test(x.type));
+        const secs=vs.reduce((s,x)=>s+x.seconds,0);
+        return `<div class="report-emp-v12">
+          <div class="report-emp-head-v12">${esc(e.name||"Employee")} · ${rows.length} activities · ${vs.length} videos · ${duration(secs)} video time</div>
+          ${rows.length?`<table class="report-table-v12">
+            <thead><tr><th>Date</th><th>Activity</th><th>Library / Section</th><th>Type</th><th>Runtime</th></tr></thead>
+            <tbody>${rows.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.library)}</td><td>${esc(x.type)}</td><td>${esc(x.runtime||"—")}</td></tr>`).join("")}</tbody>
+          </table>`:'<div class="report-empty-v12">No recorded activity in this date range.</div>'}
+        </div>`;
+      }).join("");
+  }
+
+  function exportCSV(){
+    const st=document.getElementById("reportStartV13").value;
+    const en=document.getElementById("reportEndV13").value;
+    if(!st||!en)return;
+    const rows=[["Employee","Date","Activity","Library / Section","Type","Runtime","Runtime Seconds"]];
+    chosenEmployees().forEach(e=>activities(e,st,en).forEach(x=>rows.push([e.name||"Employee",x.date,x.title,x.library,x.type,x.runtime,x.seconds])));
+    const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+    const blob=new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`training-report-${st}-to-${en}.csv`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  }
+
+  function showView(which){
+    const content=document.getElementById("content");
+    const reports=buildReportsView();
+    if(!content||!reports)return;
+
+    content.style.display=which==="reports"?"none":"";
+    reports.classList.toggle("active",which==="reports");
+
+    document.querySelectorAll(".manager-nav-v13 button").forEach(b=>{
+      b.classList.toggle("active",b.dataset.view===which);
+    });
+    if(which==="reports")populateEmployees();
+  }
+
+  function installNav(){
+    if(document.querySelector(".manager-nav-v13"))return;
+    const content=document.getElementById("content");
+    if(!content)return;
+
+    const nav=document.createElement("div");
+    nav.className="manager-nav-v13";
+    nav.innerHTML=`
+      <button type="button" class="active" data-view="team">Team Overview</button>
+      <button type="button" data-view="employees">Employees</button>
+      <button type="button" data-view="reports">Reports</button>`;
+    content.parentNode.insertBefore(nav,content);
+
+    nav.addEventListener("click",e=>{
+      const b=e.target.closest("button[data-view]");
+      if(!b)return;
+      const view=b.dataset.view;
+      if(view==="reports")showView("reports");
+      else showView("team");
+    });
+
+    buildReportsView();
+  }
+
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(installNav,200));
+  new MutationObserver(()=>{installNav()}).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
