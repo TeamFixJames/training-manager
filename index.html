@@ -68,6 +68,9 @@
   .print-doc,.print-doc *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 }
 </style>
+<style id="ongoing-engagement-v2">
+.ot-engagement{margin:14px 0 18px}.ot-week-summary,.ot-tool-card{border:1px solid #dce5ef;border-radius:12px;padding:14px 16px;background:#fff}.ot-week-head,.ot-tool-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.ot-week-title,.ot-tool-name,.ot-tools-title,.ot-schedule-label{font-weight:800;color:#183550}.ot-status{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:#eef3f8;color:#61758a}.ot-status.active{background:#e9f7ef;color:#28784b}.ot-metrics{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:8px;margin-top:12px}.ot-metric{background:#f7f9fc;border-radius:9px;padding:9px 10px}.ot-metric b{display:block;font-size:17px;color:#183550}.ot-metric span,.ot-tool-sub,.ot-limit,.ot-history{font-size:11px;color:#718196}.ot-metric span{text-transform:uppercase}.ot-tools-title{font-size:13px;margin:15px 0 8px}.ot-tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ot-dots{font-size:18px;letter-spacing:3px;margin:8px 0 4px}.ot-limit{margin-bottom:9px}.ot-log-btn{border:0;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;background:#173a5e;color:#fff}.ot-log-btn:disabled{opacity:.45}.ot-history{margin-top:9px}.ot-schedule-label{font-size:13px;margin:18px 0 6px}@media(max-width:900px){.ot-metrics{grid-template-columns:repeat(2,1fr)}.ot-tool-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -986,5 +989,23 @@ const mo=new MutationObserver(function(){clearTimeout(window.__ongoingV28);windo
 })();
 </script>
 
+<script id="ongoing-engagement-v2-script">
+(function(){
+const KEY="sf_ot_engagement_v2";
+function data(){try{return JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){return {}}}
+function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
+function employee(){try{if(window.db&&Array.isArray(db.employees)){let e=db.employees.find(x=>x.id===db.activeEmployeeId)||db.employees[0];if(e)return String(e.id||e.name)}}catch(e){}return "default"}
+function mk(d){d=new Date(d);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+function monday(d){d=new Date(d);d.setHours(0,0,0,0);let n=d.getDay();d.setDate(d.getDate()+(n===0?-6:1-n));return d}
+function sameWeek(a,b){return monday(a).getTime()===monday(b).getTime()}
+function logs(t){let x=data()[employee()]||{};return Array.isArray(x[t])?x[t]:[]}
+function add(t){let now=new Date();if(t==="fix"&&logs("fix").filter(x=>mk(x.date)===mk(now)).length>=3){alert("Monthly Fix My Call limit reached.");return}let date=prompt("Date used (YYYY-MM-DD):",now.toISOString().slice(0,10));if(!date)return;let note=prompt("Optional note:","")||"";let x=data(),k=employee();x[k]=x[k]||{};x[k][t]=x[k][t]||[];x[k][t].push({date:date,note:note});save(x);render()}
+function render(){let h=document.getElementById("otEngagementV2");if(!h)return;let now=new Date(),f=logs("fix"),c=logs("trainer"),fm=f.filter(x=>mk(x.date)===mk(now)),fw=f.filter(x=>sameWeek(x.date,now)).length,cw=c.filter(x=>sameWeek(x.date,now)).length,total=fw+cw,ws=monday(now),we=new Date(ws);we.setDate(we.getDate()+6);let fmt=d=>d.toLocaleDateString(undefined,{month:"short",day:"numeric"}),rem=Math.max(0,3-fm.length),dots="●".repeat(Math.min(3,fm.length))+"○".repeat(rem);
+h.innerHTML=`<div class="ot-week-summary"><div class="ot-week-head"><div class="ot-week-title">This Week · ${fmt(ws)}–${fmt(we)}</div><div class="ot-status ${total?"active":""}">${total?"✓ Active This Week":"No Activity Yet"}</div></div><div class="ot-metrics"><div class="ot-metric"><b>${total}</b><span>Logged Activities</span></div><div class="ot-metric"><b>${fw}</b><span>Fix My Call</span></div><div class="ot-metric"><b>${cw}</b><span>Call a Trainer</span></div><div class="ot-metric"><b>${fm.length}/3</b><span>FMC This Month</span></div><div class="ot-metric"><b>${f.length+c.length}</b><span>Tool Uses Total</span></div></div></div><div class="ot-tools-title">Engagement Tracking</div><div class="ot-tool-grid"><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Fix My Call</div><div class="ot-tool-sub">Monthly submission allowance</div></div><b>${fm.length} of 3</b></div><div class="ot-dots">${dots}</div><div class="ot-limit">${rem?rem+" submission"+(rem===1?"":"s")+" remaining this month":"Monthly limit reached"}</div><button class="ot-log-btn" id="otFix" ${rem?"":"disabled"}>+ Log Use</button><div class="ot-history">${f.length} total logged uses</div></div><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Call a Trainer</div><div class="ot-tool-sub">Advisor support activity</div></div><b>${cw} this week</b></div><div class="ot-limit">${c.length} total logged uses</div><button class="ot-log-btn" id="otTrainer">+ Log Use</button></div></div><div class="ot-schedule-label">Training Schedule</div>`;
+document.getElementById("otFix")?.addEventListener("click",()=>add("fix"));document.getElementById("otTrainer")?.addEventListener("click",()=>add("trainer"))}
+function install(){if(document.getElementById("otEngagementV2"))return;let titles=[...document.querySelectorAll("h1,h2,h3,h4")].filter(x=>(x.textContent||"").trim()==="Ongoing Training");let title=titles[titles.length-1];if(!title)return;let path=title.closest(".path-card,.training-path,.card,.panel")||title.parentElement;if(!path)return;let h=document.createElement("div");h.id="otEngagementV2";h.className="ot-engagement";let target=path.querySelector("table,.schedule,.schedule-list");if(target)target.parentNode.insertBefore(h,target);else path.appendChild(h);render()}
+document.addEventListener("DOMContentLoaded",()=>setTimeout(install,300));document.addEventListener("click",()=>setTimeout(()=>{install();render()},100),true);new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
 </body>
 </html>
