@@ -123,19 +123,21 @@
 </style>
 
 
-<style id="manager-nav-v13-css">
-.manager-nav-v13{
+
+
+
+<style id="manager-nav-v14-css">
+.manager-nav-v14{
   display:flex;gap:8px;align-items:center;margin:0 0 14px;
   padding:8px;background:#f4f7fb;border:1px solid #dce5ef;border-radius:12px
 }
-.manager-nav-v13 button{
+.manager-nav-v14 button{
   border:0;background:transparent;color:#52667d;font-weight:800;
   padding:9px 12px;border-radius:8px;cursor:pointer
 }
-.manager-nav-v13 button.active{background:#173a5e;color:#fff}
-.manager-view-v13{display:none}
-.manager-view-v13.active{display:block}
-#reportsManagerViewV13 .panel{margin-top:0}
+.manager-nav-v14 button.active{background:#173a5e;color:#fff}
+#reportsManagerViewV14{display:none}
+#reportsManagerViewV14.active{display:block}
 </style>
 
 </head>
@@ -1174,13 +1176,16 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 
 
 
-<script id="manager-reports-v13-js">
+
+
+
+<script id="manager-reports-v14-js">
 (function(){
   function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
   function seconds(v){
     if(v==null)return 0;
     if(typeof v==="number")return v;
-    const s=String(v).trim(), p=s.split(":").map(Number);
+    const p=String(v).trim().split(":").map(Number);
     if(p.some(isNaN))return 0;
     if(p.length===3)return p[0]*3600+p[1]*60+p[2];
     if(p.length===2)return p[0]*60+p[1];
@@ -1191,7 +1196,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     const h=Math.floor(n/3600),m=Math.floor((n%3600)/60);
     return h?(h+"h "+m+"m"):(m+"m");
   }
-  function employees(){
+  function roster(){
     try{return window.db&&Array.isArray(db.employees)?db.employees:[]}catch(e){return[]}
   }
   function engagement(e){
@@ -1212,23 +1217,57 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       }
     }
     const en=engagement(e);
-    for(const x of en.fix||[]) if(x.date>=start&&x.date<=end)
+    for(const x of en.fix||[])if(x.date>=start&&x.date<=end)
       rows.push({date:x.date,title:"Fix My Call",library:"Engagement",type:"fix my call",runtime:"",seconds:0});
-    for(const x of en.trainer||[]) if(x.date>=start&&x.date<=end)
+    for(const x of en.trainer||[])if(x.date>=start&&x.date<=end)
       rows.push({date:x.date,title:"Call a Trainer",library:"Engagement",type:"call a trainer",runtime:"",seconds:0});
     return rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   }
 
+  function currentMode(){
+    const reports=document.getElementById("reportsManagerViewV14");
+    if(reports&&reports.classList.contains("active"))return "reports";
+    if(window.__teamHome)return "team";
+    return "employee";
+  }
+
+  function syncNav(){
+    const nav=document.querySelector(".manager-nav-v14");
+    if(!nav)return;
+    const mode=currentMode();
+    nav.querySelectorAll("button[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===mode));
+    const empBtn=nav.querySelector('[data-view="employee"]');
+    if(empBtn){
+      let label="Employee";
+      try{
+        const e=typeof active==="function"?active():null;
+        if(e&&e.name)label=e.name;
+      }catch(err){}
+      empBtn.textContent=label;
+      empBtn.disabled=!roster().length;
+    }
+  }
+
+  function populateEmployees(){
+    const s=document.getElementById("reportEmpV14");
+    if(!s)return;
+    const prev=s.value||"all";
+    const list=roster();
+    s.innerHTML='<option value="all">All Employees</option>'+
+      list.map(e=>`<option value="${esc(String(e.id))}">${esc(e.name||"Employee")}</option>`).join("");
+    if([...s.options].some(o=>o.value===prev))s.value=prev;
+    else s.value="all";
+  }
+
   function buildReportsView(){
-    let view=document.getElementById("reportsManagerViewV13");
+    let view=document.getElementById("reportsManagerViewV14");
     if(view)return view;
 
     const content=document.getElementById("content");
     if(!content)return null;
 
     view=document.createElement("div");
-    view.id="reportsManagerViewV13";
-    view.className="manager-view-v13";
+    view.id="reportsManagerViewV14";
     view.innerHTML=`
       <div class="panel">
         <div class="activity-panel-head">
@@ -1236,49 +1275,42 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
           <p>Select a date range and review completed training and engagement activity.</p></div>
         </div>
         <div class="reports-toolbar-v12">
-          <div><label>Start Date</label><input id="reportStartV13" type="date"></div>
-          <div><label>End Date</label><input id="reportEndV13" type="date"></div>
-          <div><label>Employee</label><select id="reportEmpV13"></select></div>
+          <div><label>Start Date</label><input id="reportStartV14" type="date"></div>
+          <div><label>End Date</label><input id="reportEndV14" type="date"></div>
+          <div><label>Employee</label><select id="reportEmpV14"></select></div>
           <div class="report-actions-v12">
-            <button class="btn primary" id="runReportV13">Generate Report</button>
-            <button class="btn" id="csvReportV13">Export CSV</button>
+            <button class="btn primary" id="runReportV14">Generate Report</button>
+            <button class="btn" id="csvReportV14">Export CSV</button>
           </div>
         </div>
-        <div id="reportOutputV13"></div>
+        <div id="reportOutputV14"></div>
       </div>`;
+
     content.parentNode.insertBefore(view,content.nextSibling);
 
     const now=new Date(), start=new Date(now.getFullYear(),now.getMonth(),1);
-    view.querySelector("#reportStartV13").value=start.toISOString().slice(0,10);
-    view.querySelector("#reportEndV13").value=now.toISOString().slice(0,10);
-    view.querySelector("#runReportV13").onclick=runReport;
-    view.querySelector("#csvReportV13").onclick=exportCSV;
+    view.querySelector("#reportStartV14").value=start.toISOString().slice(0,10);
+    view.querySelector("#reportEndV14").value=now.toISOString().slice(0,10);
+    view.querySelector("#runReportV14").onclick=runReport;
+    view.querySelector("#csvReportV14").onclick=exportCSV;
     populateEmployees();
     return view;
   }
 
-  function populateEmployees(){
-    const s=document.getElementById("reportEmpV13");
-    if(!s)return;
-    const prev=s.value;
-    s.innerHTML='<option value="all">All Employees</option>'+
-      employees().map(e=>`<option value="${esc(e.id)}">${esc(e.name||"Employee")}</option>`).join("");
-    if([...s.options].some(o=>o.value===prev))s.value=prev;
-  }
-
-  function chosenEmployees(){
-    const s=document.getElementById("reportEmpV13");
-    const all=employees();
-    return !s||s.value==="all"?all:all.filter(e=>String(e.id)===s.value);
+  function selectedEmployees(){
+    const s=document.getElementById("reportEmpV14");
+    const all=roster();
+    if(!s||s.value==="all")return all;
+    return all.filter(e=>String(e.id)===String(s.value));
   }
 
   function runReport(){
-    const st=document.getElementById("reportStartV13").value;
-    const en=document.getElementById("reportEndV13").value;
-    const out=document.getElementById("reportOutputV13");
+    const st=document.getElementById("reportStartV14").value;
+    const en=document.getElementById("reportEndV14").value;
+    const out=document.getElementById("reportOutputV14");
     if(!st||!en){alert("Choose a start and end date.");return}
 
-    const es=chosenEmployees();
+    const es=selectedEmployees();
     let all=[];
     es.forEach(e=>activities(e,st,en).forEach(x=>all.push({...x,employee:e.name||"Employee"})));
 
@@ -1310,11 +1342,11 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
   }
 
   function exportCSV(){
-    const st=document.getElementById("reportStartV13").value;
-    const en=document.getElementById("reportEndV13").value;
+    const st=document.getElementById("reportStartV14").value;
+    const en=document.getElementById("reportEndV14").value;
     if(!st||!en)return;
     const rows=[["Employee","Date","Activity","Library / Section","Type","Runtime","Runtime Seconds"]];
-    chosenEmployees().forEach(e=>activities(e,st,en).forEach(x=>rows.push([e.name||"Employee",x.date,x.title,x.library,x.type,x.runtime,x.seconds])));
+    selectedEmployees().forEach(e=>activities(e,st,en).forEach(x=>rows.push([e.name||"Employee",x.date,x.title,x.library,x.type,x.runtime,x.seconds])));
     const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
     const blob=new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv"});
     const a=document.createElement("a");
@@ -1324,46 +1356,66 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     setTimeout(()=>URL.revokeObjectURL(a.href),500);
   }
 
-  function showView(which){
+  function show(mode){
     const content=document.getElementById("content");
     const reports=buildReportsView();
     if(!content||!reports)return;
 
-    content.style.display=which==="reports"?"none":"";
-    reports.classList.toggle("active",which==="reports");
-
-    document.querySelectorAll(".manager-nav-v13 button").forEach(b=>{
-      b.classList.toggle("active",b.dataset.view===which);
-    });
-    if(which==="reports")populateEmployees();
+    if(mode==="reports"){
+      reports.classList.add("active");
+      content.style.display="none";
+      populateEmployees();
+    }else{
+      reports.classList.remove("active");
+      content.style.display="";
+      if(mode==="team"){
+        window.__teamHome=true;
+        if(typeof renderTeamOverview==="function")renderTeamOverview();
+      }else{
+        window.__teamHome=false;
+        if(typeof renderAll==="function")renderAll();
+      }
+    }
+    setTimeout(syncNav,0);
   }
 
   function installNav(){
-    if(document.querySelector(".manager-nav-v13"))return;
+    if(document.querySelector(".manager-nav-v14"))return;
     const content=document.getElementById("content");
     if(!content)return;
 
     const nav=document.createElement("div");
-    nav.className="manager-nav-v13";
+    nav.className="manager-nav-v14";
     nav.innerHTML=`
-      <button type="button" class="active" data-view="team">Team Overview</button>
-      <button type="button" data-view="employees">Employees</button>
+      <button type="button" data-view="team">Team Overview</button>
+      <button type="button" data-view="employee">Employee</button>
       <button type="button" data-view="reports">Reports</button>`;
     content.parentNode.insertBefore(nav,content);
 
     nav.addEventListener("click",e=>{
       const b=e.target.closest("button[data-view]");
       if(!b)return;
-      const view=b.dataset.view;
-      if(view==="reports")showView("reports");
-      else showView("team");
+      show(b.dataset.view);
     });
 
     buildReportsView();
+    syncNav();
   }
 
+  // Keep nav state synchronized when existing roster/team rows change the selected employee.
+  document.addEventListener("click",function(e){
+    if(e.target.closest(".employee-card,.team-employee-row")){
+      setTimeout(syncNav,60);
+    }
+  },true);
+
   document.addEventListener("DOMContentLoaded",()=>setTimeout(installNav,200));
-  new MutationObserver(()=>{installNav()}).observe(document.documentElement,{childList:true,subtree:true});
+
+  new MutationObserver(()=>{
+    installNav();
+    populateEmployees();
+    syncNav();
+  }).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
