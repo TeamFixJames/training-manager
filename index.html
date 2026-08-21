@@ -109,6 +109,19 @@
 .coaching-panel{margin-top:14px}
 </style>
 
+
+<style id="reports-v12-css">
+.reports-v12{margin-top:14px}.reports-toolbar-v12{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:10px;align-items:end;margin:12px 0}
+.reports-toolbar-v12 label{font-size:10px;font-weight:800;color:#718196;text-transform:uppercase;display:block;margin-bottom:4px}
+.reports-toolbar-v12 input,.reports-toolbar-v12 select{width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccd7e4;border-radius:8px;background:#fff}
+.report-summary-v12{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+.report-stat-v12{background:#f7f9fc;border-radius:9px;padding:10px}.report-stat-v12 b{display:block;font-size:17px;color:#183550}.report-stat-v12 span{font-size:10px;color:#718196;text-transform:uppercase}
+.report-emp-v12{border:1px solid #dce5ef;border-radius:10px;margin:10px 0;overflow:hidden}.report-emp-head-v12{padding:11px 12px;background:#f7f9fc;font-weight:800;color:#183550}
+.report-table-v12{width:100%;border-collapse:collapse;font-size:11px}.report-table-v12 th,.report-table-v12 td{padding:8px;border-top:1px solid #e7edf4;text-align:left}.report-table-v12 th{font-size:9px;text-transform:uppercase;color:#718196}
+.report-empty-v12{padding:14px;color:#718196;font-size:12px}.report-actions-v12{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:900px){.reports-toolbar-v12{grid-template-columns:1fr 1fr}.report-summary-v12{grid-template-columns:repeat(2,1fr)}}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1140,6 +1153,69 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 </script>
 
 
+
+
+<script id="reports-v12-js">
+(function(){
+ function sec(v){
+   if(v==null)return 0; if(typeof v==="number")return v;
+   let s=String(v).trim(),p=s.split(":").map(Number);
+   if(p.some(isNaN))return 0;
+   if(p.length===3)return p[0]*3600+p[1]*60+p[2];
+   if(p.length===2)return p[0]*60+p[1];
+   return p.length===1?p[0]*60:0
+ }
+ function dur(n){n=Math.max(0,Math.round(n||0));let h=Math.floor(n/3600),m=Math.floor((n%3600)/60);return h?(h+"h "+m+"m"):(m+"m")}
+ function esc2(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+ function employees(){try{return window.db&&Array.isArray(db.employees)?db.employees:[]}catch(e){return[]}}
+ function engagement(e){try{return typeof engagementFor==="function"?engagementFor(e):{fix:[],trainer:[]}}catch(x){return{fix:[],trainer:[]}}}
+ function activity(e,start,end){
+   let a=[];
+   for(const p of e.paths||[]){
+     for(const x of [...(p.events||[]),...(p.webinars||[])]){
+       if(!x.completed||!x.date||x.date<start||x.date>end)continue;
+       let type=String(x.kind||x.type||"training").toLowerCase();
+       let runtime=x.runtime||x.duration||x.length||"";
+       a.push({date:x.date,title:x.title||"Training",library:x.library||x.section||"",type:type,runtime:runtime,seconds:sec(runtime)})
+     }
+   }
+   let en=engagement(e);
+   for(const x of en.fix||[])if(x.date>=start&&x.date<=end)a.push({date:x.date,title:"Fix My Call",library:"Engagement",type:"fix my call",runtime:"",seconds:0});
+   for(const x of en.trainer||[])if(x.date>=start&&x.date<=end)a.push({date:x.date,title:"Call a Trainer",library:"Engagement",type:"call a trainer",runtime:"",seconds:0});
+   return a.sort((x,y)=>String(y.date).localeCompare(String(x.date)))
+ }
+ function ensure(){
+   if(document.getElementById("reportsV12"))return;
+   let content=document.getElementById("content")||document.querySelector("main");
+   if(!content)return;
+   let panel=document.createElement("div");panel.id="reportsV12";panel.className="panel reports-v12";panel.style.display="none";
+   panel.innerHTML=`<div class="activity-panel-head"><div><h3>Employee Training Reports</h3><p>Select a date range and review completed training and engagement activity.</p></div></div>
+   <div class="reports-toolbar-v12"><div><label>Start Date</label><input id="reportStartV12" type="date"></div><div><label>End Date</label><input id="reportEndV12" type="date"></div><div><label>Employee</label><select id="reportEmpV12"></select></div><div class="report-actions-v12"><button class="btn primary" id="runReportV12">Generate Report</button><button class="btn" id="csvReportV12">Export CSV</button></div></div><div id="reportOutputV12"></div>`;
+   content.prepend(panel);
+
+   let nav=document.querySelector(".top-actions,.header-actions,.toolbar");
+   if(nav&&!document.getElementById("reportsBtnV12")){let b=document.createElement("button");b.id="reportsBtnV12";b.className="btn";b.textContent="Reports";nav.appendChild(b);b.onclick=()=>{panel.style.display=panel.style.display==="none"?"block":"none";populate()}}
+   let now=new Date(),start=new Date();start.setDate(1);panel.querySelector("#reportStartV12").value=start.toISOString().slice(0,10);panel.querySelector("#reportEndV12").value=now.toISOString().slice(0,10);
+   panel.querySelector("#runReportV12").onclick=run;panel.querySelector("#csvReportV12").onclick=csv;populate()
+ }
+ function populate(){let s=document.getElementById("reportEmpV12");if(!s)return;let prev=s.value;s.innerHTML='<option value="all">All Employees</option>'+employees().map(e=>`<option value="${esc2(e.id)}">${esc2(e.name||"Employee")}</option>`).join("");if([...s.options].some(o=>o.value===prev))s.value=prev}
+ function chosen(){let v=document.getElementById("reportEmpV12").value,all=employees();return v==="all"?all:all.filter(e=>String(e.id)===v)}
+ function run(){
+   let st=document.getElementById("reportStartV12").value,en=document.getElementById("reportEndV12").value,o=document.getElementById("reportOutputV12");if(!st||!en){alert("Choose a start and end date.");return}
+   let es=chosen(),all=[];es.forEach(e=>activity(e,st,en).forEach(x=>all.push({...x,employee:e.name||"Employee"})));
+   let video=all.filter(x=>/video|training/.test(x.type)&&!/group|webinar|workshop|custom/.test(x.type)),videoSec=video.reduce((s,x)=>s+x.seconds,0),live=all.filter(x=>/group|webinar|workshop|live/.test(x.type)),liveSec=live.reduce((s,x)=>s+x.seconds,0);
+   o.innerHTML=`<div class="report-summary-v12"><div class="report-stat-v12"><b>${es.length}</b><span>Employees</span></div><div class="report-stat-v12"><b>${video.length}</b><span>Videos Completed</span></div><div class="report-stat-v12"><b>${dur(videoSec)}</b><span>Video Training Time</span></div><div class="report-stat-v12"><b>${live.length}</b><span>Live Activities</span></div><div class="report-stat-v12"><b>${dur(liveSec)}</b><span>Live Training Time</span></div></div>`+
+   es.map(e=>{let rows=activity(e,st,en),vs=rows.filter(x=>/video|training/.test(x.type)&&!/group|webinar|workshop|custom/.test(x.type)),secs=vs.reduce((s,x)=>s+x.seconds,0);return`<div class="report-emp-v12"><div class="report-emp-head-v12">${esc2(e.name||"Employee")} · ${rows.length} activities · ${vs.length} videos · ${dur(secs)} video time</div>${rows.length?`<table class="report-table-v12"><thead><tr><th>Date</th><th>Activity</th><th>Library / Section</th><th>Type</th><th>Runtime</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc2(x.date)}</td><td>${esc2(x.title)}</td><td>${esc2(x.library)}</td><td>${esc2(x.type)}</td><td>${esc2(x.runtime||"—")}</td></tr>`).join("")}</tbody></table>`:'<div class="report-empty-v12">No recorded activity in this date range.</div>'}</div>`}).join("")
+ }
+ function csv(){
+   let st=document.getElementById("reportStartV12").value,en=document.getElementById("reportEndV12").value;if(!st||!en)return;
+   let rows=[["Employee","Date","Activity","Library / Section","Type","Runtime","Runtime Seconds"]];
+   chosen().forEach(e=>activity(e,st,en).forEach(x=>rows.push([e.name||"Employee",x.date,x.title,x.library,x.type,x.runtime,x.seconds])));
+   let q=v=>'"'+String(v??"").replace(/"/g,'""')+'"',blob=new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`training-report-${st}-to-${en}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)
+ }
+ document.addEventListener("DOMContentLoaded",()=>setTimeout(ensure,250));document.addEventListener("click",()=>setTimeout(()=>{ensure();populate()},80),true)
+})();
+</script>
 
 </body>
 </html>
