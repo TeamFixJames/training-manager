@@ -130,10 +130,7 @@
 </style>
 
 
-<style id="live-training-v17-css">
-.live-duration-help-v17{font-size:10px;color:#718196;margin-top:4px}
-.group-complete-v17{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#4f6278}
-</style>
+
 
 </head>
 <body>
@@ -206,7 +203,7 @@
   <div class="modal-body">
     <div class="field"><label>Display name</label><input id="groupCallName" value="Weekly Group Call"></div>
     <div class="two"><div class="field"><label>Day of week</label><select id="groupCallDay"><option value="2">Tuesday</option><option value="3" selected>Wednesday</option><option value="4">Thursday</option></select></div><div class="field"><label>Time</label><input id="groupCallTime" type="time" value="12:00"></div></div>
-    <div class="field"><label>Runtime / duration <span style="font-weight:500;color:#98a2b3">(optional)</span></label><input id="groupCallDuration" placeholder="e.g., 60:00"></div>
+    <div class="field"><label>Runtime / duration</label><input id="groupCallDuration" value="01:00:00" readonly><div style="font-size:10px;color:#718196;margin-top:4px">Weekly Group Calls are always counted as 1 hour of live training.</div></div>
     <div class="muted-note">The call will appear every week throughout this training path. It is supplemental and will not change the Path to Certification video pace.</div>
   </div>
   <div class="modal-actions"><button class="btn" id="cancelGroupCallModal">Cancel</button><button class="btn primary" id="saveGroupCallBtn">Add Weekly Call</button></div>
@@ -216,7 +213,7 @@
   <div class="modal-body">
     <div class="field"><label>Webinar / workshop title</label><input id="webinarTitle" placeholder="e.g., Advanced Sales Workshop"></div>
     <div class="two"><div class="field"><label>Date</label><input id="webinarDate" type="date"></div><div class="field"><label>Time</label><input id="webinarTime" type="time" value="12:00"></div></div>
-    <div class="field"><label>Runtime / duration <span style="font-weight:500;color:#98a2b3">(optional)</span></label><input id="webinarDuration" placeholder="e.g., 90:00"></div>
+    <div class="field"><label>Runtime / duration</label><input id="webinarDuration" placeholder="01:00:00" pattern="\d{1,2}:\d{2}:\d{2}" inputmode="numeric"><div style="font-size:10px;color:#718196;margin-top:4px">Enter as HH:MM:SS (example: 01:00:00 for one hour).</div></div>
     <div class="muted-note">Webinars are one-off supplemental events. Adding one will not move any certification videos.</div>
   </div>
   <div class="modal-actions"><button class="btn" id="cancelWebinarModal">Cancel</button><button class="btn primary" id="saveWebinarBtn">Add Webinar</button></div>
@@ -282,13 +279,13 @@ function pathPct(p){const items=progressEvents(p);return items.length?Math.round
 function pathComplete(p){if(!p||p.type==='ongoing')return false;const items=progressEvents(p);const coreDone=!!(items.length&&items.every(x=>x.completed));return p.type==='cert'?coreDone&&!!p.level1Passed&&!!p.level2Passed:coreDone}
 function activePath(e){return e?.paths?.find(p=>p.id===e.activePathId)||e?.paths?.[e.paths.length-1]||null}
 function reflowCertFrom(p,eventId){if(p.type!=='cert')return;const ordered=p.events.filter(x=>(x.kind||'video')==='video').slice().sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));const idx=ordered.findIndex(x=>x.id===eventId);if(idx<0)return;let cursor=date(ordered[idx].date);for(let i=idx+1;i<ordered.length;i++){cursor=nextBusinessDay(cursor);ordered[i].date=iso(cursor)}}
-function ensurePathExtras(p){p.weeklyCalls=Array.isArray(p.weeklyCalls)?p.weeklyCalls:[];p.webinars=Array.isArray(p.webinars)?p.webinars:[];p.recurringCustoms=Array.isArray(p.recurringCustoms)?p.recurringCustoms:[];p.events=(p.events||[]).map(x=>({...x,kind:x.kind||(p.type==='cert'?'video':'custom')}));if(typeof p.level1Passed!=='boolean')p.level1Passed=false;if(typeof p.level2Passed!=='boolean')p.level2Passed=false;return p}
+function ensurePathExtras(p){p.weeklyCalls=Array.isArray(p.weeklyCalls)?p.weeklyCalls:[];p.weeklyCalls=p.weeklyCalls.map(x=>({...x,duration:'01:00:00',completedDates:Array.isArray(x.completedDates)?x.completedDates:[]}));p.webinars=Array.isArray(p.webinars)?p.webinars:[];p.recurringCustoms=Array.isArray(p.recurringCustoms)?p.recurringCustoms:[];p.events=(p.events||[]).map(x=>({...x,kind:x.kind||(p.type==='cert'?'video':'custom')}));if(typeof p.level1Passed!=='boolean')p.level1Passed=false;if(typeof p.level2Passed!=='boolean')p.level2Passed=false;return p}
 function mondayOf(s){const d=typeof s==='string'?date(s):new Date(s);const day=d.getDay()||7;d.setDate(d.getDate()-day+1);return d}
 function fridayOf(s){const d=mondayOf(s);d.setDate(d.getDate()+4);return d}
 function weekKey(s){return iso(mondayOf(s))}
 function weekLabel(s,idx){const mon=mondayOf(s),fri=fridayOf(s);return `Week ${idx} · ${shortFmt(mon)}–${shortFmt(fri)}`}
 function pathEndDate(p){if(p.type==='ongoing'){const base=new Date(Math.max(date(p.startDate).getTime(),Date.now()));base.setDate(base.getDate()+84);return iso(base)}const core=(p.events||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));if(core.length)return core.at(-1).date;return p.startDate}
-function generatedWeeklyCalls(p){ensurePathExtras(p);const start=date(p.startDate),end=date(pathEndDate(p)),out=[];for(const cfg of p.weeklyCalls){let d=new Date(start);const target=Number(cfg.weekday);while(d.getDay()!==target)d.setDate(d.getDate()+1);while(d<=end){out.push({id:`call-${cfg.id}-${iso(d)}`,configId:cfg.id,kind:'call',date:iso(d),section:'',title:cfg.title||'Weekly Group Call',duration:cfg.duration||'',time:cfg.time||'12:00',completed:false,fixMyCall:false,callTrainer:false,notes:'',generated:true});d.setDate(d.getDate()+7)}}return out}
+function generatedWeeklyCalls(p){ensurePathExtras(p);const start=date(p.startDate),end=date(pathEndDate(p)),out=[];for(const cfg of p.weeklyCalls){let d=new Date(start);const target=Number(cfg.weekday);while(d.getDay()!==target)d.setDate(d.getDate()+1);while(d<=end){const day=iso(d);out.push({id:`call-${cfg.id}-${day}`,configId:cfg.id,kind:'call',date:day,section:'',title:cfg.title||'Weekly Group Call',duration:'01:00:00',time:cfg.time||'12:00',completed:(cfg.completedDates||[]).includes(day),fixMyCall:false,callTrainer:false,notes:'',generated:true});d.setDate(d.getDate()+7)}}return out}
 function generatedRecurringCustoms(p){ensurePathExtras(p);const end=date(pathEndDate(p)),out=[];for(const cfg of p.recurringCustoms){let d=date(cfg.startDate||p.startDate);while(d<=end){out.push({id:`customrec-${cfg.id}-${iso(d)}`,configId:cfg.id,kind:'custom',date:iso(d),section:'',title:cfg.title||'Custom Training',duration:cfg.duration||'',time:cfg.time||p.defaultTime||'08:00',completed:false,fixMyCall:false,callTrainer:false,notes:'',generated:true,recurringCustom:true});d.setDate(d.getDate()+7)}}return out}
 function scheduleItems(p){ensurePathExtras(p);return [...p.events,...p.webinars.map(x=>({...x,kind:'webinar'})),...generatedWeeklyCalls(p),...generatedRecurringCustoms(p)].sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'')||(a.kind==='video'?-1:1))}
 function typeLabel(k){return k==='video'?'Video':k==='call'?'Weekly Group Call':k==='webinar'?'Webinar / Workshop':'Custom Training'}
@@ -306,11 +303,11 @@ function coachingFor(e){const s=coachingStore();return s[String(e?.id||'')]||[]}
 function saveCoachingFor(e,items){const s=coachingStore();s[String(e.id)]=items;localStorage.setItem('sf_coaching_notes_v1',JSON.stringify(s))}
 function weekStartDate(v){const d=typeof v==='string'?date(v):new Date(v);d.setHours(12,0,0,0);const day=d.getDay()||7;d.setDate(d.getDate()-day+1);return d}
 function inWeek(v,start){const d=typeof v==='string'?date(v):new Date(v),s=weekStartDate(start),e=new Date(s);e.setDate(e.getDate()+7);return d>=s&&d<e}
-function ongoingWeekActivity(e,p,start){const eng=engagementFor(e),events=[...(p?.events||[]),...(p?.webinars||[])];const completed=events.filter(x=>x.completed&&x.date&&inWeek(x.date,start));const fix=(eng.fix||[]).filter(x=>x.date&&inWeek(x.date,start));const trainer=(eng.trainer||[]).filter(x=>x.date&&inWeek(x.date,start));return{completed,fix,trainer,total:completed.length+fix.length+trainer.length}}
-function ongoingConsistency(e,p){const now=new Date(),weeks=[];for(let i=0;i<8;i++){const s=weekStartDate(now);s.setDate(s.getDate()-i*7);const a=ongoingWeekActivity(e,p,s);weeks.push({start:s,total:a.total,active:a.total>0})}const activeWeeks=weeks.filter(x=>x.active).length;let streak=0;for(const w of weeks){if(w.active)streak++;else break}const activityDates=[];for(const x of [...(p?.events||[]),...(p?.webinars||[])])if(x.completed&&x.date)activityDates.push(date(x.date));const eng=engagementFor(e);for(const x of [...(eng.fix||[]),...(eng.trainer||[])])if(x.date)activityDates.push(date(x.date));activityDates.sort((a,b)=>b-a);return{weeks,activeWeeks,streak,lastActivity:activityDates[0]||null}}
+function ongoingWeekActivity(e,p,start){const eng=engagementFor(e),events=p?(typeof scheduleItems==='function'?scheduleItems(p):[...(p.events||[]),...(p.webinars||[])]):[];const completed=events.filter(x=>x.completed&&x.date&&inWeek(x.date,start));const fix=(eng.fix||[]).filter(x=>x.date&&inWeek(x.date,start));const trainer=(eng.trainer||[]).filter(x=>x.date&&inWeek(x.date,start));return{completed,fix,trainer,total:completed.length+fix.length+trainer.length}}
+function ongoingConsistency(e,p){const now=new Date(),weeks=[];for(let i=0;i<8;i++){const s=weekStartDate(now);s.setDate(s.getDate()-i*7);const a=ongoingWeekActivity(e,p,s);weeks.push({start:s,total:a.total,active:a.total>0})}const activeWeeks=weeks.filter(x=>x.active).length;let streak=0;for(const w of weeks){if(w.active)streak++;else break}const activityDates=[];for(const x of (p?(typeof scheduleItems==='function'?scheduleItems(p):[...(p.events||[]),...(p.webinars||[])]):[]))if(x.completed&&x.date)activityDates.push(date(x.date));const eng=engagementFor(e);for(const x of [...(eng.fix||[]),...(eng.trainer||[])])if(x.date)activityDates.push(date(x.date));activityDates.sort((a,b)=>b-a);return{weeks,activeWeeks,streak,lastActivity:activityDates[0]||null}}
 function certPaceSummary(p){const vids=(p?.events||[]).filter(x=>(x.kind||'video')==='video').slice().sort((a,b)=>a.date.localeCompare(b.date));const now=new Date();now.setHours(12,0,0,0);const expected=Math.min(90,vids.filter(x=>date(x.date)<=now).length),completed=Math.min(90,vids.filter(x=>x.completed).length);return{expected,completed,delta:completed-expected}}
 function employeeAttention(e){const p=activePath(e);if(!p)return{level:'attention',label:'Needs Attention',reason:'No training path assigned'};if(p.type==='cert'){const pace=certPaceSummary(p);const videos=(p.events||[]).filter(x=>(x.kind||'video')==='video');const allDone=videos.length>0&&videos.every(x=>x.completed);if(p.level2Passed)return{level:'good',label:'On Track',reason:'Level 2 certification passed'};if(allDone&&!p.level1Passed)return{level:'attention',label:'Needs Attention',reason:'Video curriculum complete · Level 1 ready'};if(allDone&&p.level1Passed&&!p.level2Passed)return{level:'attention',label:'Needs Attention',reason:'Level 2 certification ready'};if(pace.delta<=-3)return{level:'action',label:'Action Needed',reason:Math.abs(pace.delta)+' videos behind pace'};if(pace.delta<0)return{level:'attention',label:'Needs Attention',reason:Math.abs(pace.delta)+' video'+(Math.abs(pace.delta)===1?'':'s')+' behind pace'};return{level:'good',label:'On Track',reason:pace.delta>0?pace.delta+' videos ahead of pace':'Certification pace is on schedule'}}const c=ongoingConsistency(e,p),current=c.weeks[0];if(current?.active)return{level:'good',label:'On Track',reason:'Active this week · '+c.activeWeeks+' of last 8 weeks active'};if(c.lastActivity){const days=Math.floor((new Date()-c.lastActivity)/86400000);if(days>=14)return{level:'action',label:'Action Needed',reason:'No training activity in '+days+' days'};return{level:'attention',label:'Needs Attention',reason:'No activity yet this week'}}const started=p.startDate?date(p.startDate):new Date();const age=Math.floor((new Date()-started)/86400000);return age>=14?{level:'action',label:'Action Needed',reason:'No ongoing training activity logged'}:{level:'attention',label:'Needs Attention',reason:'No activity yet this week'}}
-function recentActivity(e){const out=[];for(const p of e.paths||[]){for(const x of [...(p.events||[]),...(p.webinars||[])])if(x.completed&&x.date)out.push({date:x.date,type:'training',title:x.title||'Training completed',detail:pathName(p.type)+(x.section?' · '+x.section:'')})}const eng=engagementFor(e);for(const x of eng.fix||[])if(x.date)out.push({date:x.date,type:'fix',title:'Fix My Call used',detail:x.note||'Engagement activity'});for(const x of eng.trainer||[])if(x.date)out.push({date:x.date,type:'trainer',title:'Call a Trainer used',detail:x.note||'Engagement activity'});return out.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,20)}
+function recentActivity(e){const out=[];for(const p of e.paths||[]){for(const x of (typeof scheduleItems==='function'?scheduleItems(p):[...(p.events||[]),...(p.webinars||[])]))if(x.completed&&x.date)out.push({date:x.date,type:'training',title:x.title||'Training completed',detail:pathName(p.type)+(x.section?' · '+x.section:'')})}const eng=engagementFor(e);for(const x of eng.fix||[])if(x.date)out.push({date:x.date,type:'fix',title:'Fix My Call used',detail:x.note||'Engagement activity'});for(const x of eng.trainer||[])if(x.date)out.push({date:x.date,type:'trainer',title:'Call a Trainer used',detail:x.note||'Engagement activity'});return out.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,20)}
 function recentActivityPanel(e){const items=recentActivity(e),visible=items.slice(0,5),hidden=items.slice(5);return`<div class="activity-panel"><div class="activity-panel-head"><div><h3>Recent Activity</h3><p>Completed training and support-tool usage for this employee.</p></div></div><div class="activity-timeline" id="recentActivityTimeline">${visible.length?visible.map(x=>`<div class="activity-row"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join(''):'<div class="activity-empty">No activity recorded yet.</div>'}${hidden.map(x=>`<div class="activity-row recent-extra" style="display:none"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join('')}</div>${hidden.length?`<button class="btn" id="recentActivityToggle">Show More (${hidden.length})</button>`:''}</div>`}
 function coachingPanel(e){const items=[...coachingFor(e)].sort((a,b)=>String(b.date).localeCompare(String(a.date)));return`<div class="activity-panel coaching-panel"><div class="activity-panel-head"><div><h3>Coaching Notes</h3><p>Manager notes and coaching observations for this employee.</p></div><button class="btn" id="addCoachingNoteBtn">+ Add Note</button></div><div class="coach-note-form" id="coachNoteForm" style="display:none"><input id="coachNoteDate" type="date" value="${iso(new Date())}"><textarea id="coachNoteText" rows="2" placeholder="Add a coaching observation, development focus, or follow-up..."></textarea><div><button class="btn primary" id="saveCoachingNoteBtn">Save Note</button><button class="btn" id="cancelCoachingNoteBtn">Cancel</button></div></div><div class="activity-timeline">${items.length?items.map(x=>`<div class="activity-row"><div class="activity-dot note"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>Manager note</b><span>${esc(x.text||'')}</span></div></div>`).join(''):'<div class="activity-empty">No coaching notes yet.</div>'}</div></div>`}
 function bindRecentActivity(e){const toggle=$('#recentActivityToggle');if(toggle){toggle.onclick=()=>{const extra=$$('.recent-extra'),open=extra.some(x=>x.style.display!=='none');extra.forEach(x=>x.style.display=open?'none':'grid');toggle.textContent=open?`Show More (${extra.length})`:'Show Less'}}const add=$('#addCoachingNoteBtn'),form=$('#coachNoteForm');if(!add||!form)return;add.onclick=()=>{form.style.display='grid';$('#coachNoteText').focus()};$('#cancelCoachingNoteBtn').onclick=()=>{form.style.display='none'};$('#saveCoachingNoteBtn').onclick=()=>{const dt=$('#coachNoteDate').value,txt=$('#coachNoteText').value.trim();if(!dt||!txt){alert('Add a date and coaching note.');return}const items=coachingFor(e);items.push({id:uid(),date:dt,text:txt});saveCoachingFor(e,items);renderAll();showToast('Coaching note added')}}
@@ -340,8 +337,8 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
  $('#content').innerHTML=`${pathTabs(e)}${banner}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addGroupCallBtn">+ Weekly Group Call</button><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics. Add the specific video or activity the employee should complete.':'<b>Weekly Group Call:</b> choose the recurring weekday and time once; it will populate throughout this training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>${p.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Path notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(p.notes)}</div></div>`:''}${e.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Employee notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(e.notes)}</div></div>`:''}`;
  $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;$('#addGroupCallBtn').onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;if(p.type==='cert'){const l1=$('#level1PassBtn'),l2=$('#level2PassBtn');if(l1)l1.onclick=()=>{p.level1Passed=!p.level1Passed;if(!p.level1Passed)p.level2Passed=false;persist();renderAll();showToast(p.level1Passed?'Level 1 marked passed':'Level 1 pass removed')};if(l2)l2.onclick=()=>{p.level2Passed=!p.level2Passed;persist();renderAll();showToast(p.level2Passed?'Level 2 marked passed':'Level 2 pass removed')}}
 }
-function scheduleTable(p){const items=scheduleItems(p);let rows='',lastWeek='',weekIndex=0;for(const ev of items){const wk=weekKey(ev.date);if(wk!==lastWeek){lastWeek=wk;weekIndex++;rows+=`<tr class="week-row"><td colspan="11">${weekLabel(ev.date,weekIndex)}<span>${fmt(mondayOf(ev.date))}</span></td></tr>`}const supplemental=ev.kind!=='video';rows+=`<tr class="${supplemental?'supplemental-row':''}" data-event="${ev.id}" data-kind="${ev.kind}"><td>${ev.generated?esc(fmt(ev.date)):`<input class="ev-date" type="date" value="${esc(ev.date)}">`}</td><td class="video-title">${esc(ev.title)}</td><td class="section-name">${esc(ev.section||'—')}</td><td><span class="type-pill ${typeClass(ev.kind)}">${typeLabel(ev.kind)}</span></td><td class="runtime">${esc(ev.duration||'—')}</td><td>${esc(ev.time||'—')}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-complete" type="checkbox" ${ev.completed?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-fix" type="checkbox" ${ev.fixMyCall?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-trainer" type="checkbox" ${ev.callTrainer?'checked':''}>`}</td><td>${ev.generated?(ev.recurringCustom?'Recurring custom item':'Recurring call'):`<input class="notes ev-notes" type="text" placeholder="Add a note..." value="${esc(ev.notes)}">`}</td><td>${ev.generated?(ev.recurringCustom?`<button class="icon ev-delete-custom-rec" data-config="${ev.configId}" title="Remove recurring custom training item">×</button>`:`<button class="icon ev-delete-call" data-config="${ev.configId}" title="Remove recurring weekly call">×</button>`):`<button class="icon ev-delete" title="Delete">×</button>`}</td></tr>`}return`<table class="schedule"><thead><tr><th>Date</th><th>Training / Video</th><th>Section</th><th>Type</th><th>Runtime</th><th>Time</th><th>Completed</th><th>Fix My Call</th><th>Call a Trainer</th><th>Notes</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="11" style="padding:24px;color:#98a2b3">No training scheduled yet.</td></tr>'}</tbody></table>`}
-function bindSchedule(e,p){$$('tr[data-event]').forEach(tr=>{const kind=tr.dataset.kind;const customRecBtn=tr.querySelector('.ev-delete-custom-rec');if(customRecBtn){customRecBtn.onclick=()=>{const id=customRecBtn.dataset.config;if(confirm('Remove this recurring custom training item from the entire training path?')){p.recurringCustoms=p.recurringCustoms.filter(x=>x.id!==id);persist();renderAll();showToast('Recurring custom training removed')}};return}if(kind==='call'){const btn=tr.querySelector('.ev-delete-call');if(btn)btn.onclick=()=>{const id=btn.dataset.config;if(confirm('Remove this Weekly Group Call from the entire training path?')){p.weeklyCalls=p.weeklyCalls.filter(x=>x.id!==id);persist();renderAll();showToast('Weekly Group Call removed')}};return}let collection=kind==='webinar'?p.webinars:p.events;const ev=collection.find(x=>x.id===tr.dataset.event);if(!ev)return;const dateInput=tr.querySelector('.ev-date');if(dateInput)dateInput.onchange=x=>{if(!x.target.value)return;ev.date=x.target.value;if(p.type==='cert'&&kind==='video'){reflowCertFrom(p,ev.id);persist();renderAll();showToast('Video date updated · remaining videos rescheduled')}else{persist();renderAll();showToast('Date updated without changing video pace')}};const c=tr.querySelector('.ev-complete');if(c)c.onchange=x=>{ev.completed=x.target.checked;persist();renderAll()};const f=tr.querySelector('.ev-fix');if(f)f.onchange=x=>{ev.fixMyCall=x.target.checked;persist();renderRoster();showToast('Fix My Call updated')};const t=tr.querySelector('.ev-trainer');if(t)t.onchange=x=>{ev.callTrainer=x.target.checked;persist();renderRoster();showToast('Call a Trainer updated')};const n=tr.querySelector('.ev-notes');if(n)n.oninput=x=>{ev.notes=x.target.value;persist()};const d=tr.querySelector('.ev-delete');if(d)d.onclick=()=>{if(kind==='webinar')p.webinars=p.webinars.filter(x=>x.id!==ev.id);else p.events=p.events.filter(x=>x.id!==ev.id);persist();renderAll()}})}
+function scheduleTable(p){const items=scheduleItems(p);let rows='',lastWeek='',weekIndex=0;for(const ev of items){const wk=weekKey(ev.date);if(wk!==lastWeek){lastWeek=wk;weekIndex++;rows+=`<tr class="week-row"><td colspan="11">${weekLabel(ev.date,weekIndex)}<span>${fmt(mondayOf(ev.date))}</span></td></tr>`}const supplemental=ev.kind!=='video';const completedCell=ev.kind==='call'?`<input class="check ev-call-complete" type="checkbox" ${ev.completed?'checked':''}>`:(ev.generated?'—':`<input class="check ev-complete" type="checkbox" ${ev.completed?'checked':''}>`);rows+=`<tr class="${supplemental?'supplemental-row':''}" data-event="${ev.id}" data-kind="${ev.kind}" data-config="${ev.configId||''}" data-date="${ev.date}"><td>${ev.generated?esc(fmt(ev.date)):`<input class="ev-date" type="date" value="${esc(ev.date)}">`}</td><td class="video-title">${esc(ev.title)}</td><td class="section-name">${esc(ev.section||'—')}</td><td><span class="type-pill ${typeClass(ev.kind)}">${typeLabel(ev.kind)}</span></td><td class="runtime">${esc(ev.duration||'—')}</td><td>${esc(ev.time||'—')}</td><td class="check-cell">${completedCell}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-fix" type="checkbox" ${ev.fixMyCall?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-trainer" type="checkbox" ${ev.callTrainer?'checked':''}>`}</td><td>${ev.generated?(ev.recurringCustom?'Recurring custom item':'Recurring call'):`<input class="notes ev-notes" type="text" placeholder="Add a note..." value="${esc(ev.notes)}">`}</td><td>${ev.generated?(ev.recurringCustom?`<button class="icon ev-delete-custom-rec" data-config="${ev.configId}" title="Remove recurring custom training item">×</button>`:`<button class="icon ev-delete-call" data-config="${ev.configId}" title="Remove recurring weekly call">×</button>`):`<button class="icon ev-delete" title="Delete">×</button>`}</td></tr>`}return`<table class="schedule"><thead><tr><th>Date</th><th>Training / Video</th><th>Section</th><th>Type</th><th>Runtime</th><th>Time</th><th>Completed</th><th>Fix My Call</th><th>Call a Trainer</th><th>Notes</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="11" style="padding:24px;color:#98a2b3">No training scheduled yet.</td></tr>'}</tbody></table>`}
+function bindSchedule(e,p){$$('tr[data-event]').forEach(tr=>{const kind=tr.dataset.kind;const customRecBtn=tr.querySelector('.ev-delete-custom-rec');if(customRecBtn){customRecBtn.onclick=()=>{const id=customRecBtn.dataset.config;if(confirm('Remove this recurring custom training item from the entire training path?')){p.recurringCustoms=p.recurringCustoms.filter(x=>x.id!==id);persist();renderAll();showToast('Recurring custom training removed')}};return}if(kind==='call'){const cfg=p.weeklyCalls.find(x=>x.id===tr.dataset.config);const c=tr.querySelector('.ev-call-complete');if(c&&cfg)c.onchange=x=>{cfg.completedDates=Array.isArray(cfg.completedDates)?cfg.completedDates:[];const day=tr.dataset.date;if(x.target.checked){if(!cfg.completedDates.includes(day))cfg.completedDates.push(day)}else{cfg.completedDates=cfg.completedDates.filter(d=>d!==day)}persist();renderAll();showToast(x.target.checked?'Weekly Group Call marked complete':'Weekly Group Call marked incomplete')};const btn=tr.querySelector('.ev-delete-call');if(btn)btn.onclick=()=>{const id=btn.dataset.config;if(confirm('Remove this Weekly Group Call from the entire training path?')){p.weeklyCalls=p.weeklyCalls.filter(x=>x.id!==id);persist();renderAll();showToast('Weekly Group Call removed')}};return}let collection=kind==='webinar'?p.webinars:p.events;const ev=collection.find(x=>x.id===tr.dataset.event);if(!ev)return;const dateInput=tr.querySelector('.ev-date');if(dateInput)dateInput.onchange=x=>{if(!x.target.value)return;ev.date=x.target.value;if(p.type==='cert'&&kind==='video'){reflowCertFrom(p,ev.id);persist();renderAll();showToast('Video date updated · remaining videos rescheduled')}else{persist();renderAll();showToast('Date updated without changing video pace')}};const c=tr.querySelector('.ev-complete');if(c)c.onchange=x=>{ev.completed=x.target.checked;persist();renderAll()};const f=tr.querySelector('.ev-fix');if(f)f.onchange=x=>{ev.fixMyCall=x.target.checked;persist();renderRoster();showToast('Fix My Call updated')};const t=tr.querySelector('.ev-trainer');if(t)t.onchange=x=>{ev.callTrainer=x.target.checked;persist();renderRoster();showToast('Call a Trainer updated')};const n=tr.querySelector('.ev-notes');if(n)n.oninput=x=>{ev.notes=x.target.value;persist()};const d=tr.querySelector('.ev-delete');if(d)d.onclick=()=>{if(kind==='webinar')p.webinars=p.webinars.filter(x=>x.id!==ev.id);else p.events=p.events.filter(x=>x.id!==ev.id);persist();renderAll()}})}
 let pendingDeleteAction=null;
 function openDeleteConfirm(title,text,buttonLabel,action){
   pendingDeleteAction=action;
@@ -399,12 +396,12 @@ function saveEmployee(){const name=$('#empName').value.trim();if(!name){alert('P
 function openPathModal(){const e=active();if(!e)return;const p=activePath(e);let start=iso(normalizeStart(iso(new Date())));if(p?.events?.length){const last=p.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).at(-1);if(last)start=iso(nextBusinessDay(last.date))}$('#pathStart').value=start;$('#pathTime').value=p?.defaultTime||'08:00';$('#pathNotes').value='';$$('input[name="newPath"]').forEach(r=>r.checked=r.value==='ongoing');$('#pathModal').classList.add('show')}
 function closePathModal(){$('#pathModal').classList.remove('show')}
 function savePath(){const e=active();if(!e)return;const type=$('input[name="newPath"]:checked').value,start=$('#pathStart').value,time=$('#pathTime').value||'08:00',notes=$('#pathNotes').value;if(!start){alert('Please choose a start date.');return}const p=makePath(type,start,time,notes);e.paths.push(p);e.activePathId=p.id;persist();closePathModal();renderAll();showToast(`${pathName(type)} added`)}
-function openGroupCallModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#groupCallName').value='Weekly Group Call';$('#groupCallDay').value='3';$('#groupCallTime').value='12:00';$('#groupCallDuration').value='';$('#groupCallModal').classList.add('show')}
+function openGroupCallModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#groupCallName').value='Weekly Group Call';$('#groupCallDay').value='3';$('#groupCallTime').value='12:00';$('#groupCallDuration').value='01:00:00';$('#groupCallModal').classList.add('show')}
 function closeGroupCallModal(){$('#groupCallModal').classList.remove('show')}
-function saveGroupCall(){const p=activePath(active());if(!p)return;ensurePathExtras(p);p.weeklyCalls.push({id:uid(),title:$('#groupCallName').value.trim()||'Weekly Group Call',weekday:Number($('#groupCallDay').value),time:$('#groupCallTime').value||'12:00',duration:$('#groupCallDuration').value.trim()});persist();closeGroupCallModal();renderAll();showToast('Weekly Group Call added across schedule')}
+function saveGroupCall(){const p=activePath(active());if(!p)return;ensurePathExtras(p);p.weeklyCalls.push({id:uid(),title:$('#groupCallName').value.trim()||'Weekly Group Call',weekday:Number($('#groupCallDay').value),time:$('#groupCallTime').value||'12:00',duration:'01:00:00',completedDates:[]});persist();closeGroupCallModal();renderAll();showToast('Weekly Group Call added across schedule')}
 function openWebinarModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#webinarTitle').value='';$('#webinarDate').value=p.startDate;$('#webinarTime').value='12:00';$('#webinarDuration').value='';$('#webinarModal').classList.add('show')}
 function closeWebinarModal(){$('#webinarModal').classList.remove('show')}
-function saveWebinar(){const p=activePath(active());if(!p)return;ensurePathExtras(p);const title=$('#webinarTitle').value.trim(),d=$('#webinarDate').value;if(!title||!d){alert('Please enter a webinar title and date.');return}p.webinars.push({id:uid(),kind:'webinar',date:d,section:'',title,duration:$('#webinarDuration').value.trim(),time:$('#webinarTime').value||'12:00',completed:false,fixMyCall:false,callTrainer:false,notes:''});persist();closeWebinarModal();renderAll();showToast('Webinar added without changing video pace')}
+function saveWebinar(){const p=activePath(active());if(!p)return;ensurePathExtras(p);const title=$('#webinarTitle').value.trim(),d=$('#webinarDate').value,duration=$('#webinarDuration').value.trim();if(!title||!d){alert('Please enter a webinar title and date.');return}if(duration&&!/^\d{1,2}:\d{2}:\d{2}$/.test(duration)){alert('Enter webinar duration as HH:MM:SS. Example: 01:00:00 for one hour.');$('#webinarDuration').focus();return}p.webinars.push({id:uid(),kind:'webinar',date:d,section:'',title,duration,time:$('#webinarTime').value||'12:00',completed:false,fixMyCall:false,callTrainer:false,notes:''});persist();closeWebinarModal();renderAll();showToast('Webinar added without changing video pace')}
 function openCustomTrainingModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#customTrainingName').value='';$('#customTrainingDate').value=p.startDate;$('#customTrainingTime').value=p.defaultTime||'08:00';$('#customTrainingDuration').value='';$('#customTrainingRecurrence').value='once';updateCustomTrainingHint();$('#customTrainingModal').classList.add('show')}
 function closeCustomTrainingModal(){$('#customTrainingModal').classList.remove('show')}
 function updateCustomTrainingHint(){const p=activePath(active());const recurring=$('#customTrainingRecurrence').value==='weekly';if(p?.type==='ongoing')$('#customTrainingHint').textContent=recurring?'This item will repeat weekly in the rolling Ongoing Training schedule. Ongoing Training has no finish date.':'A one-time training item will be added to the employee’s ongoing weekly training history.';else $('#customTrainingHint').textContent=recurring?'This item will repeat every 7 days through the current training path. It will not change certification video dates.':'A one-time custom item will appear on the selected date without changing certification video dates.'}
@@ -1190,24 +1187,14 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
   function reportRows(e,start,end){
     const rows=[];
     for(const p of e.paths||[]){
-      for(const x of p.events||[]){
+      const scheduled=typeof scheduleItems==="function"?scheduleItems(p):[...(p.events||[]),...(p.webinars||[])];
+      for(const x of scheduled){
         if(!x.completed||!x.date||x.date<start||x.date>end)continue;
         rows.push({
           date:x.date,
           title:x.title||"Training",
-          library:x.section||"",
+          library:x.section||typeLabel(x.kind||"training"),
           type:x.kind||"training",
-          runtime:x.duration||"",
-          seconds:secR(x.duration||"")
-        });
-      }
-      for(const x of p.webinars||[]){
-        if(!x.completed||!x.date||x.date<start||x.date>end)continue;
-        rows.push({
-          date:x.date,
-          title:x.title||"Webinar / Workshop",
-          library:"Webinar / Workshop",
-          type:"webinar",
           runtime:x.duration||"",
           seconds:secR(x.duration||"")
         });
@@ -1314,235 +1301,10 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 </script>
 
 
-<script id="live-training-v17-js">
-(function(){
-  function normalizeDurationInput(v){
-    if(v==null)return "";
-    let s=String(v).trim().toLowerCase();
-    if(!s)return "";
-
-    // hh:mm:ss
-    if(/^\d+:\d{2}:\d{2}$/.test(s)) return s;
-
-    // h:mm
-    if(/^\d+:\d{2}$/.test(s)){
-      const [a,b]=s.split(":").map(Number);
-      // Treat values >= 60 in the first segment as minutes:seconds.
-      if(a>=60) return "00:"+String(a).padStart(2,"0")+":"+String(b).padStart(2,"0");
-      return String(a).padStart(2,"0")+":"+String(b).padStart(2,"0")+":00";
-    }
-
-    // 90m / 90 min / 90 minutes
-    let m=s.match(/^(\d+)\s*(m|min|mins|minute|minutes)$/);
-    if(m){
-      let total=Number(m[1]),h=Math.floor(total/60),min=total%60;
-      return String(h).padStart(2,"0")+":"+String(min).padStart(2,"0")+":00";
-    }
-
-    // 1h / 1 hr / 1 hour / 1.5 hours
-    m=s.match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/);
-    if(m){
-      let total=Math.round(Number(m[1])*3600),h=Math.floor(total/3600),min=Math.floor((total%3600)/60),sec=total%60;
-      return String(h).padStart(2,"0")+":"+String(min).padStart(2,"0")+":"+String(sec).padStart(2,"0");
-    }
-
-    // "1 hour 30 minutes"
-    m=s.match(/^(\d+)\s*(?:h|hr|hrs|hour|hours)\s*(\d+)\s*(?:m|min|mins|minute|minutes)$/);
-    if(m){
-      return String(Number(m[1])).padStart(2,"0")+":"+String(Number(m[2])).padStart(2,"0")+":00";
-    }
-
-    return null;
-  }
-
-  function patchWebinarDuration(){
-    // Find duration inputs in webinar/workshop modals and guide/validate them.
-    document.querySelectorAll(".modal,.dialog,[role='dialog']").forEach(modal=>{
-      const txt=(modal.textContent||"").toLowerCase();
-      if(!(txt.includes("webinar")||txt.includes("workshop")))return;
-
-      const inputs=[...modal.querySelectorAll('input[type="text"],input:not([type])')];
-      inputs.forEach(inp=>{
-        const context=((inp.id||"")+" "+(inp.name||"")+" "+(inp.placeholder||"")).toLowerCase();
-        if(!context.includes("duration") && !context.includes("runtime") && !context.includes("length"))return;
-
-        inp.placeholder="01:00:00";
-        if(!inp.nextElementSibling || !inp.nextElementSibling.classList.contains("live-duration-help-v17")){
-          const help=document.createElement("div");
-          help.className="live-duration-help-v17";
-          help.textContent="Enter duration as HH:MM:SS (example: 01:00:00 for one hour).";
-          inp.insertAdjacentElement("afterend",help);
-        }
-      });
-    });
-  }
-
-  function interceptWebinarSave(e){
-    const btn=e.target.closest("button");
-    if(!btn)return;
-    const modal=btn.closest(".modal,.dialog,[role='dialog']");
-    if(!modal)return;
-    const txt=(modal.textContent||"").toLowerCase();
-    if(!(txt.includes("webinar")||txt.includes("workshop")))return;
-    if(!/save|add|create/i.test(btn.textContent||""))return;
-
-    const inputs=[...modal.querySelectorAll('input[type="text"],input:not([type])')];
-    const dur=inputs.find(inp=>{
-      const c=((inp.id||"")+" "+(inp.name||"")+" "+(inp.placeholder||"")).toLowerCase();
-      return c.includes("duration")||c.includes("runtime")||c.includes("length")||inp.placeholder==="01:00:00";
-    });
-    if(!dur)return;
-
-    const normalized=normalizeDurationInput(dur.value);
-    if(dur.value.trim() && normalized===null){
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      alert("Enter the duration as HH:MM:SS. Example: 01:00:00 for one hour.");
-      dur.focus();
-      return;
-    }
-    if(normalized)dur.value=normalized;
-  }
-
-  function ensureGroupCallCompletion(){
-    document.querySelectorAll("tr,.schedule-row,.training-row").forEach(row=>{
-      const txt=(row.textContent||"").toLowerCase();
-      if(!txt.includes("weekly group call"))return;
-      if(row.querySelector(".group-complete-v17"))return;
-
-      // Use the normal Completed column if one exists; otherwise append a compact control.
-      const ths=[...row.closest("table")?.querySelectorAll("thead th")||[]];
-      let idx=ths.findIndex(th=>(th.textContent||"").trim().toLowerCase()==="completed");
-      if(idx>=0 && row.children[idx]){
-        const cell=row.children[idx];
-        if(!cell.querySelector('input[type="checkbox"]')){
-          const cb=document.createElement("input");
-          cb.type="checkbox";
-          cb.className="group-call-complete-v17";
-          cell.appendChild(cb);
-        }
-        return;
-      }
-
-      const cell=document.createElement("td");
-      cell.className="group-complete-v17";
-      cell.innerHTML='<label class="group-complete-v17"><input type="checkbox" class="group-call-complete-v17"> Completed</label>';
-      row.appendChild(cell);
-    });
-  }
-
-  document.addEventListener("change",function(e){
-    const cb=e.target.closest(".group-call-complete-v17");
-    if(!cb)return;
-    const row=cb.closest("tr,.schedule-row,.training-row");
-    if(!row)return;
-
-    // Try to map the visible Weekly Group Call row back to the underlying event.
-    const dateInput=row.querySelector('input[type="date"]');
-    const date=dateInput?dateInput.value:"";
-    try{
-      if(window.db && Array.isArray(db.employees)){
-        const emp=db.employees.find(x=>x.id===db.activeId)||db.employees[0];
-        const path=typeof activePath==="function"?activePath(emp):(emp.paths||[]).slice(-1)[0];
-        if(path && Array.isArray(path.events)){
-          let matches=path.events.filter(x=>String(x.title||"").toLowerCase().includes("weekly group call"));
-          if(date)matches=matches.filter(x=>x.date===date);
-          if(matches[0]){
-            matches[0].completed=cb.checked;
-            if(typeof persist==="function")persist();
-          }
-        }
-      }
-    }catch(err){console.warn("Could not persist group-call completion",err)}
-  },true);
-
-  document.addEventListener("click",function(e){
-    interceptWebinarSave(e);
-    setTimeout(()=>{patchWebinarDuration();ensureGroupCallCompletion()},50);
-  },true);
-
-  document.addEventListener("DOMContentLoaded",function(){
-    setTimeout(()=>{patchWebinarDuration();ensureGroupCallCompletion()},250);
-  });
-
-  new MutationObserver(()=>{
-    clearTimeout(window.__liveV17);
-    window.__liveV17=setTimeout(()=>{patchWebinarDuration();ensureGroupCallCompletion()},80);
-  }).observe(document.documentElement,{childList:true,subtree:true});
-})();
-</script>
 
 
-<script id="group-call-runtime-v18">
-(function(){
-  function applyGroupCallDefaults(){
-    try{
-      if(window.db && Array.isArray(db.employees)){
-        let changed=false;
-        db.employees.forEach(emp=>{
-          (emp.paths||[]).forEach(path=>{
-            (path.events||[]).forEach(ev=>{
-              if(String(ev.title||"").toLowerCase().includes("weekly group call")){
-                if(!ev.duration || ev.duration==="—" || ev.duration==="-"){
-                  ev.duration="01:00:00";
-                  changed=true;
-                }
-              }
-            });
-          });
-        });
-        if(changed && typeof persist==="function") persist();
-      }
-    }catch(err){
-      console.warn("Could not set Weekly Group Call runtime.",err);
-    }
 
-    document.querySelectorAll("tr,.schedule-row,.training-row").forEach(row=>{
-      const txt=(row.textContent||"").toLowerCase();
-      if(!txt.includes("weekly group call"))return;
 
-      const table=row.closest("table");
-      const headers=table?[...table.querySelectorAll("thead th")]:[];
-
-      // Ensure runtime/duration cell visibly shows 01:00:00.
-      let runtimeIdx=headers.findIndex(th=>{
-        const t=(th.textContent||"").trim().toLowerCase();
-        return t==="runtime" || t==="duration";
-      });
-      if(runtimeIdx>=0 && row.children[runtimeIdx]){
-        const cell=row.children[runtimeIdx];
-        if(!cell.querySelector("input,select,textarea")) cell.textContent="01:00:00";
-      }
-
-      // Remove any old dash from the Completed cell while preserving checkbox.
-      let completedIdx=headers.findIndex(th=>(th.textContent||"").trim().toLowerCase()==="completed");
-      if(completedIdx>=0 && row.children[completedIdx]){
-        const cell=row.children[completedIdx];
-        const cb=cell.querySelector('input[type="checkbox"]');
-        if(cb){
-          [...cell.childNodes].forEach(node=>{
-            if(node.nodeType===Node.TEXT_NODE && /^[\s—-]*$/.test(node.textContent||"")){
-              node.remove();
-            }
-          });
-          cell.querySelectorAll("span").forEach(span=>{
-            if(/^[\s—-]*$/.test(span.textContent||"")) span.remove();
-          });
-        }
-      }
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded",()=>setTimeout(applyGroupCallDefaults,250));
-  document.addEventListener("click",()=>setTimeout(applyGroupCallDefaults,80),true);
-  document.addEventListener("change",()=>setTimeout(applyGroupCallDefaults,80),true);
-
-  new MutationObserver(()=>{
-    clearTimeout(window.__groupV18);
-    window.__groupV18=setTimeout(applyGroupCallDefaults,80);
-  }).observe(document.documentElement,{childList:true,subtree:true});
-})();
-</script>
 
 </body>
 </html>
