@@ -80,6 +80,11 @@
 @media(max-width:900px){.overview.ongoing-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 
+
+<style id="path-positioning-v7-css">
+.path-guidance-v7{margin:8px 0 2px;padding:8px 10px;border-radius:8px;background:#f7f9fc;color:#63758a;font-size:11px;line-height:1.4}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -122,7 +127,7 @@
     <div class="field"><label>Training path</label>
       <label class="path-choice"><input type="radio" name="path" value="cert" checked><b>Path to Certification · Prebuilt</b><p>Our recommended easy pace: one video per business day, in curriculum order. The full schedule is built automatically from the employee's start date.</p></label>
       <label class="path-choice"><input type="radio" name="path" value="ongoing"><b>Ongoing Training</b><p>Open-ended weekly training with no finish date. Designed for continued use of the Sales Fix school after certification.</p></label>
-      <label class="path-choice"><input type="radio" name="path" value="blank"><b>Blank Schedule</b><p>Create a fully custom schedule from scratch.</p></label>
+      
     </div>
     <div class="two"><div class="field"><label>Start date</label><input id="empStart" type="date"></div><div class="field"><label>Default training time</label><input id="empTime" type="time" value="08:00"></div></div>
     <div class="field"><label>Manager notes</label><textarea id="empNotes" rows="3" placeholder="Coaching priorities, goals, exceptions..."></textarea></div>
@@ -136,7 +141,7 @@
     <div class="field"><label>Choose the next training path</label>
       <label class="path-choice"><input type="radio" name="newPath" value="cert"><b>Path to Certification · Prebuilt</b><p>One video per business day, automatically scheduled in curriculum order.</p></label>
       <label class="path-choice"><input type="radio" name="newPath" value="ongoing" checked><b>Ongoing Training</b><p>Open-ended weekly training after certification. No finish date or progress percentage; keep adding videos, live calls, platform tools, and workshops over time.</p></label>
-      <label class="path-choice"><input type="radio" name="newPath" value="blank"><b>Blank Schedule</b><p>A fully custom training path for special plans or coaching.</p></label>
+      
     </div>
     <div class="two"><div class="field"><label>Start date</label><input id="pathStart" type="date"></div><div class="field"><label>Default training time</label><input id="pathTime" type="time" value="08:00"></div></div>
     <div class="field"><label>Path notes</label><textarea id="pathNotes" rows="3" placeholder="Goals or context for this training path..."></textarea></div>
@@ -1026,6 +1031,31 @@ document.addEventListener("DOMContentLoaded",()=>setTimeout(install,300));docume
 </script>
 
 
+
+
+<script id="path-positioning-v7">
+(function(){
+  function enhance(){
+    document.querySelectorAll(".modal,.dialog,[role='dialog']").forEach(function(modal){
+      var t=(modal.textContent||"").toLowerCase();
+      if(!(t.includes("training path")||t.includes("add employee"))) return;
+      if(modal.querySelector(".path-guidance-v7")) return;
+      var ongoing=[...modal.querySelectorAll("label,div")].find(function(el){
+        return /ongoing training/i.test(el.textContent||"") && /open-ended|no finish|continued/i.test(el.textContent||"");
+      });
+      if(ongoing){
+        var n=document.createElement("div");
+        n.className="path-guidance-v7";
+        n.textContent="Need a custom plan? Choose Ongoing Training and add Custom Training Items alongside school videos, calls, and workshops.";
+        ongoing.insertAdjacentElement("afterend",n);
+      }
+    });
+  }
+  document.addEventListener("DOMContentLoaded",function(){setTimeout(enhance,100)});
+  document.addEventListener("click",function(){setTimeout(enhance,50)},true);
+  new MutationObserver(enhance).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
 
 </body>
 </html>
