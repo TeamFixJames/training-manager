@@ -804,9 +804,8 @@ load();renderAll();
   }
   function isCertification(p){return !!p && (p.type==="cert" || /certification/i.test(String(p.name||p.title||"")))}
   function isVideo(x){
-    var kind=String(x.kind||x.type||x.category||"video").toLowerCase();
-    var title=String(x.title||x.video||x.name||"").toLowerCase();
-    return !/group|webinar|workshop|custom|live/.test(kind+" "+title);
+    var kind=String(x.kind||x.type||x.category||"video").toLowerCase().trim();
+    return !["group","group_call","weekly_group_call","webinar","workshop","live","custom","custom_training","supplemental"].includes(kind);
   }
   function moveBusinessDays(date,delta){
     var x=new Date(date),step=delta>=0?1:-1,left=Math.abs(delta);
