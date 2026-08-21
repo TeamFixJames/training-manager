@@ -1306,5 +1306,63 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 
 
 
+
+<script id="no-shake-completion-v20">
+(function(){
+  function refreshDerived(){
+    try{
+      if(typeof persist==="function") persist();
+      if(typeof renderPaceStatusV24==="function") renderPaceStatusV24();
+      if(typeof renderAllPace==="function") renderAllPace();
+    }catch(e){}
+  }
+
+  document.addEventListener("change", function(e){
+    const cb = e.target.closest('.ev-complete,.ev-call-complete');
+    if(!cb) return;
+
+    const tr = cb.closest('tr[data-event]');
+    if(!tr) return;
+
+    try{
+      const emp = typeof active==="function" ? active() : null;
+      const p = emp && typeof activePath==="function" ? activePath(emp) : null;
+      if(!p) return;
+
+      const kind = tr.dataset.kind;
+      const eventId = tr.dataset.event;
+
+      if(kind === "call"){
+        const cfg = (p.weeklyCalls||[]).find(x=>x.id===tr.dataset.config);
+        if(cfg){
+          cfg.completedDates = Array.isArray(cfg.completedDates) ? cfg.completedDates : [];
+          const day = tr.dataset.date;
+          if(cb.checked){
+            if(!cfg.completedDates.includes(day)) cfg.completedDates.push(day);
+          } else {
+            cfg.completedDates = cfg.completedDates.filter(d=>d!==day);
+          }
+          refreshDerived();
+          if(typeof showToast==="function") showToast(cb.checked?'Weekly Group Call marked complete':'Weekly Group Call marked incomplete');
+          e.stopImmediatePropagation();
+          return;
+        }
+      }
+
+      const ev = (p.events||[]).find(x=>String(x.id)===String(eventId)) ||
+                 (p.webinars||[]).find(x=>String(x.id)===String(eventId));
+      if(ev){
+        ev.completed = cb.checked;
+        refreshDerived();
+        if(typeof showToast==="function") showToast(cb.checked?'Training marked complete':'Training marked incomplete');
+        e.stopImmediatePropagation();
+      }
+    }catch(err){
+      console.warn("Could not update completion without rerender.", err);
+    }
+  }, true);
+})();
+</script>
+
 </body>
 </html>
