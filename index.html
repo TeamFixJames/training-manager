@@ -72,26 +72,12 @@
 .ot-engagement{margin:14px 0 18px}.ot-week-summary,.ot-tool-card{border:1px solid #dce5ef;border-radius:12px;padding:14px 16px;background:#fff}.ot-week-head,.ot-tool-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.ot-week-title,.ot-tool-name,.ot-tools-title,.ot-schedule-label{font-weight:800;color:#183550}.ot-status{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:#eef3f8;color:#61758a}.ot-status.active{background:#e9f7ef;color:#28784b}.ot-metrics{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:8px;margin-top:12px}.ot-metric{background:#f7f9fc;border-radius:9px;padding:9px 10px}.ot-metric b{display:block;font-size:17px;color:#183550}.ot-metric span,.ot-tool-sub,.ot-limit,.ot-history{font-size:11px;color:#718196}.ot-metric span{text-transform:uppercase}.ot-tools-title{font-size:13px;margin:15px 0 8px}.ot-tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ot-dots{font-size:18px;letter-spacing:3px;margin:8px 0 4px}.ot-limit{margin-bottom:9px}.ot-log-btn{border:0;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;background:#173a5e;color:#fff}.ot-log-btn:disabled{opacity:.45}.ot-history{margin-top:9px}.ot-schedule-label{font-size:13px;margin:18px 0 6px}@media(max-width:900px){.ot-metrics{grid-template-columns:repeat(2,1fr)}.ot-tool-grid{grid-template-columns:1fr}}
 </style>
 
-<style id="ongoing-layout-v5">
-/* Compact Ongoing Training intro */
-.ot-compact-intro-v5{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
-  padding:4px 0 12px;margin-bottom:2px;
-}
-.ot-compact-intro-v5 .ot-copy-v5{min-width:0}
-.ot-compact-intro-v5 .ot-desc-v5{font-size:12px;color:#61758a;margin-top:3px}
-.ot-compact-intro-v5 .ot-badge-v5{
-  flex:0 0 auto;font-size:11px;font-weight:800;padding:6px 10px;border-radius:999px;
-  background:#eef4fb;color:#315f91;white-space:nowrap
-}
-/* Overview becomes four useful cards */
-.ot-overview-four-v5{grid-template-columns:repeat(4,minmax(0,1fr))!important}
-/* Hide the old explanatory weekly-engagement banner only in Ongoing Training */
-.ot-old-banner-hidden-v5{display:none!important}
-@media(max-width:900px){
-  .ot-overview-four-v5{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-  .ot-compact-intro-v5{flex-direction:column;gap:7px}
-}
+
+
+
+<style id="ongoing-layout-v6">
+.overview.ongoing-overview{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:900px){.overview.ongoing-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 
 </head>
@@ -261,14 +247,14 @@ function renderAll(){renderRoster();const e=active();$('#topActions').style.disp
 function pathTabs(e){return`<div class="path-history-label">Training paths</div><div class="path-toolbar">${e.paths.map((p,i)=>{const pct=pathPct(p),done=pathComplete(p);const status=p.type==='ongoing'?'Open-ended · active':done?'<span class="done-mark">Complete</span>':pct+'% complete';return`<button class="path-tab ${p.id===e.activePathId?'active':''}" data-path="${p.id}"><b>${i+1}. ${esc(pathName(p.type))}</b><span>${fmt(p.startDate)} · ${status}</span></button>`}).join('')}<button class="add-path" id="inlineAddPath">+ Add Training Path</button>${e.paths.length?'<button class="btn danger" id="removePathBtn">Remove Selected Path</button>':''}</div>`}
 function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=pathTabs(e)+'<div class="empty"><div><h3>No training path selected</h3><p>Add a training path to begin scheduling.</p><button class="btn primary" onclick="openPathModal()">+ Add Training Path</button></div></div>';return}
  ensurePathExtras(p);const core=progressEvents(p),completed=core.filter(x=>x.completed).length,pct=pathPct(p);const next=core.filter(x=>!x.completed).sort((a,b)=>a.date.localeCompare(b.date))[0];const last=core.slice().sort((a,b)=>a.date.localeCompare(b.date)).at(-1);$('#topTitle').textContent=e.name;$('#topSub').textContent=`${e.manager?'Manager: '+e.manager+' · ':''}${e.paths.length} training path${e.paths.length===1?'':'s'} on record`;
- const banner=p.type==='cert'?`<div class="path-banner"><div><h3>Path to Certification</h3><p><b>Prebuilt · 1 Video Per Business Day.</b> Certification videos set the long-term pace. Weekly Group Calls and optional live webinars can be added on top without shifting video dates.</p></div><div class="path-tag">Recommended easy pace</div></div>`:p.type==='ongoing'?`<div class="path-banner ongoing"><div><h3>Ongoing Training</h3><p><b>Open-ended · No finish date.</b> After certification, the goal is consistent weekly engagement with Sales Fix: videos from the other school libraries, Weekly Group Calls, Fix My Call, Call a Trainer, and optional webinars/workshops.</p></div><div class="path-tag">Ongoing · No End Date</div></div>`:`<div class="path-banner custom"><div><h3>Custom Training Path</h3><p>A flexible schedule for special coaching plans or training outside the standard certification path.</p></div><div class="path-tag">Custom plan</div></div>`;
+ const banner=p.type==='cert'?`<div class="path-banner"><div><h3>Path to Certification</h3><p><b>Prebuilt · 1 Video Per Business Day.</b> Certification videos set the long-term pace. Weekly Group Calls and optional live webinars can be added on top without shifting video dates.</p></div><div class="path-tag">Recommended easy pace</div></div>`:p.type==='ongoing'?`<div class="path-banner ongoing"><div><h3>Ongoing Training</h3><p>Build a consistent weekly training habit through school videos, live training, and practice activities.</p></div><div class="path-tag">Ongoing · No End Date</div></div>`:`<div class="path-banner custom"><div><h3>Custom Training Path</h3><p>A flexible schedule for special coaching plans or training outside the standard certification path.</p></div><div class="path-tag">Custom plan</div></div>`;
  const plannedSeconds=core.reduce((a,x)=>a+durationSeconds(x.duration),0);const liveCount=p.weeklyCalls.length+p.webinars.length+p.recurringCustoms.length;
  let overview,progressBlock,note,status;
  if(p.type==='ongoing'){
    const all=scheduleItems(p);const today=iso(new Date());const now=date(today);const mon=mondayOf(now),sun=new Date(mon);sun.setDate(sun.getDate()+6);const thisWeek=all.filter(x=>date(x.date)>=mon&&date(x.date)<=sun);const doneWeek=thisWeek.filter(x=>x.completed).length;const recentStart=new Date(now);recentStart.setDate(recentStart.getDate()-30);const recent=(p.events||[]).concat(p.webinars||[]).filter(x=>date(x.date)>=recentStart&&date(x.date)<=now);const fixUses=recent.filter(x=>x.fixMyCall).length,trainerUses=recent.filter(x=>x.callTrainer).length;const nextItem=all.filter(x=>x.date>=today).sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''))[0];
-   overview=`<div class="overview"><div class="stat"><label>Status</label><strong style="font-size:15px">Active</strong><small>Open-ended training</small></div><div class="stat"><label>Started</label><strong style="font-size:15px">${fmt(p.startDate)}</strong><small>No finish date</small></div><div class="stat"><label>This Week</label><strong>${thisWeek.length}</strong><small>${doneWeek} completed / logged</small></div><div class="stat"><label>Next Training</label><strong style="font-size:15px">${nextItem?shortFmt(nextItem.date):'—'}</strong><small>${nextItem?esc(nextItem.title):'Add the next activity'}</small></div><div class="stat"><label>Last 30 Days</label><strong style="font-size:15px">${fixUses} / ${trainerUses}</strong><small>Fix My Call / Call a Trainer uses</small></div></div>`;
-   progressBlock=`<div class="progress-wrap"><div class="progress-head"><b>Weekly engagement</b><span>Ongoing Training has no completion percentage</span></div><div style="font-size:12px;color:var(--muted);line-height:1.55">Keep this employee logging in and training every week. Add videos from the other Sales Fix libraries, live calls, workshops, and practice activities as they are assigned.</div></div>`;
-   note=`<div class="schedule-note"><b>Ongoing Training:</b> this path never ends. The schedule is a rolling training log. Recurring items display through the next 12 weeks and continue forward as time moves on.</div>`;
+   overview=`<div class="overview ongoing-overview"><div class="stat"><label>Started</label><strong style="font-size:15px">${fmt(p.startDate)}</strong><small>No finish date</small></div><div class="stat"><label>This Week</label><strong>${thisWeek.length}</strong><small>${doneWeek} completed / logged</small></div><div class="stat"><label>Next Training</label><strong style="font-size:15px">${nextItem?shortFmt(nextItem.date):'—'}</strong><small>${nextItem?esc(nextItem.title):'Add the next activity'}</small></div><div class="stat"><label>Last 30 Days</label><strong style="font-size:15px">${fixUses} / ${trainerUses}</strong><small>Fix My Call / Call a Trainer uses</small></div></div>`;
+   progressBlock=`<div id="otEngagementMount"></div>`;
+   note='';
    status='<span class="status-pill todo">ONGOING</span>';
  }else{
    overview=`<div class="overview"><div class="stat"><label>Progress</label><strong>${pct}%</strong><small>${completed} of ${core.length} core items complete</small></div><div class="stat"><label>Start Date</label><strong style="font-size:15px">${fmt(p.startDate)}</strong><small>This training path</small></div><div class="stat"><label>Estimated Finish</label><strong style="font-size:15px">${last?fmt(last.date):'—'}</strong><small>Core training schedule</small></div><div class="stat"><label>Next Training</label><strong style="font-size:15px">${next?shortFmt(next.date):(p.events.length?'Complete':'—')}</strong><small>${next?esc(next.title):(p.events.length?'No remaining items':'No items scheduled')}</small></div><div class="stat"><label>Training Time</label><strong style="font-size:15px">${formatSeconds(plannedSeconds)}</strong><small>Core scheduled runtime · ${liveCount} live setup${liveCount===1?'':'s'}</small></div></div>`;
@@ -1025,89 +1011,21 @@ function add(t){let now=new Date();if(t==="fix"&&logs("fix").filter(x=>mk(x.date
 function render(){let h=document.getElementById("otEngagementV2");if(!h)return;let now=new Date(),f=logs("fix"),c=logs("trainer"),fm=f.filter(x=>mk(x.date)===mk(now)),fw=f.filter(x=>sameWeek(x.date,now)).length,cw=c.filter(x=>sameWeek(x.date,now)).length,total=fw+cw,ws=monday(now),we=new Date(ws);we.setDate(we.getDate()+6);let fmt=d=>d.toLocaleDateString(undefined,{month:"short",day:"numeric"}),rem=Math.max(0,3-fm.length),dots="●".repeat(Math.min(3,fm.length))+"○".repeat(rem);
 h.innerHTML=`<div class="ot-week-summary"><div class="ot-week-head"><div class="ot-week-title">This Week · ${fmt(ws)}–${fmt(we)}</div><div class="ot-status ${total?"active":""}">${total?"✓ Active This Week":"No Activity Yet"}</div></div><div class="ot-metrics"><div class="ot-metric"><b>${total}</b><span>Logged Activities</span></div><div class="ot-metric"><b>${fw}</b><span>Fix My Call</span></div><div class="ot-metric"><b>${cw}</b><span>Call a Trainer</span></div><div class="ot-metric"><b>${fm.length}/3</b><span>FMC This Month</span></div><div class="ot-metric"><b>${f.length+c.length}</b><span>Tool Uses Total</span></div></div></div><div class="ot-tools-title">Engagement Tracking</div><div class="ot-tool-grid"><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Fix My Call</div><div class="ot-tool-sub">Monthly submission allowance</div></div><b>${fm.length} of 3</b></div><div class="ot-dots">${dots}</div><div class="ot-limit">${rem?rem+" submission"+(rem===1?"":"s")+" remaining this month":"Monthly limit reached"}</div><button class="ot-log-btn" id="otFix" ${rem?"":"disabled"}>+ Log Use</button><div class="ot-history">${f.length} total logged uses</div></div><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Call a Trainer</div><div class="ot-tool-sub">Advisor support activity</div></div><b>${cw} this week</b></div><div class="ot-limit">${c.length} total logged uses</div><button class="ot-log-btn" id="otTrainer">+ Log Use</button></div></div><div class="ot-schedule-label">Training Schedule</div>`;
 document.getElementById("otFix")?.addEventListener("click",()=>add("fix"));document.getElementById("otTrainer")?.addEventListener("click",()=>add("trainer"))}
-function install(){if(document.getElementById("otEngagementV2"))return;let titles=[...document.querySelectorAll("h1,h2,h3,h4")].filter(x=>(x.textContent||"").trim()==="Ongoing Training");let title=titles[titles.length-1];if(!title)return;let path=title.closest(".path-card,.training-path,.card,.panel")||title.parentElement;if(!path)return;let h=document.createElement("div");h.id="otEngagementV2";h.className="ot-engagement";let target=path.querySelector("table,.schedule,.schedule-list");if(target)target.parentNode.insertBefore(h,target);else path.appendChild(h);render()}
+function install(){
+  if(document.getElementById("otEngagementV2"))return;
+  let mount=document.getElementById("otEngagementMount");
+  if(!mount)return;
+  let h=document.createElement("div");
+  h.id="otEngagementV2";
+  h.className="ot-engagement";
+  mount.replaceWith(h);
+  render()
+}
 document.addEventListener("DOMContentLoaded",()=>setTimeout(install,300));document.addEventListener("click",()=>setTimeout(()=>{install();render()},100),true);new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
-<script id="ongoing-layout-v5-script">
-(function(){
- function txt(el){return (el&&el.textContent||"").replace(/\s+/g," ").trim()}
- function findOngoingRoot(){
-   var hs=[...document.querySelectorAll("h1,h2,h3,h4")].filter(h=>/^ongoing training$/i.test(txt(h)));
-   var h=hs[hs.length-1]; if(!h)return null;
-   return h.closest(".path-card,.training-path,.card,.panel")||h.parentElement;
- }
- function cardsIn(root){
-   return [...root.querySelectorAll("div")].filter(el=>{
-     var t=txt(el);
-     return /^(STATUS|STARTED|THIS WEEK|NEXT TRAINING|LAST 30 DAYS)\b/i.test(t) &&
-       el.children.length>0 && t.length<180;
-   });
- }
- function apply(){
-   var root=findOngoingRoot(); if(!root)return;
 
-   // Compact intro directly beneath/alongside the Ongoing Training heading.
-   var heading=[...root.querySelectorAll("h1,h2,h3,h4")].find(h=>/^ongoing training$/i.test(txt(h)));
-   if(heading && !root.querySelector(".ot-compact-intro-v5")){
-     var intro=document.createElement("div");
-     intro.className="ot-compact-intro-v5";
-     intro.innerHTML='<div class="ot-copy-v5"><div class="ot-desc-v5">Build a consistent weekly training habit through school videos, live training, and practice activities.</div></div><span class="ot-badge-v5">Ongoing · No End Date</span>';
-     heading.insertAdjacentElement("afterend",intro);
-   }
-
-   // Remove/hide old large Weekly engagement explanatory banner.
-   [...root.querySelectorAll("div")].forEach(el=>{
-     var t=txt(el);
-     if(/^Weekly engagement\b/i.test(t) &&
-        /Ongoing Training has no completion percentage/i.test(t) &&
-        t.length<500){
-       el.classList.add("ot-old-banner-hidden-v5");
-     }
-   });
-
-   // Locate overview card row and remove the redundant STATUS card.
-   var status=[...root.querySelectorAll("div")].find(el=>{
-     var t=txt(el);
-     return /^STATUS\s+Active\s+Open-ended training$/i.test(t) ||
-            (/^STATUS\b/i.test(t)&&/Open-ended training/i.test(t)&&t.length<120);
-   });
-   if(status){
-     // Walk upward only until we reach the direct card-sized element.
-     var card=status;
-     while(card.parentElement && card.parentElement!==root &&
-           card.parentElement.children.length<=2 &&
-           txt(card.parentElement).length<160){
-       card=card.parentElement;
-     }
-     card.style.display="none";
-     var row=card.parentElement;
-     if(row) row.classList.add("ot-overview-four-v5");
-   }
-
-   // Ensure overview appears before the detailed engagement block.
-   var engagement=root.querySelector("#otEngagementV2");
-   if(engagement){
-     var overview=null;
-     [...root.querySelectorAll("div")].some(el=>{
-       var t=txt(el);
-       if(/STARTED/i.test(t)&&/THIS WEEK/i.test(t)&&/NEXT TRAINING/i.test(t)&&/LAST 30 DAYS/i.test(t)&&el.children.length>=4){
-         overview=el; return true;
-       }
-       return false;
-     });
-     if(overview && overview.compareDocumentPosition(engagement)&Node.DOCUMENT_POSITION_PRECEDING){
-       engagement.parentNode.insertBefore(overview,engagement);
-     }
-   }
- }
- document.addEventListener("DOMContentLoaded",()=>setTimeout(apply,250));
- document.addEventListener("click",()=>setTimeout(apply,100),true);
- new MutationObserver(()=>{clearTimeout(window.__otv5);window.__otv5=setTimeout(apply,60)})
-   .observe(document.documentElement,{childList:true,subtree:true});
-})();
-</script>
 
 </body>
 </html>
