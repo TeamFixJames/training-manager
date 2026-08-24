@@ -39,9 +39,8 @@ export async function GET(request) {
 
   try {
     const catalogPath = path.join(
-      process.cwd(),
-      'public',
-      'catalog.json'
+  process.cwd(),
+  'catalog.json'
     );
 
     const raw = await fs.readFile(catalogPath, 'utf8');
