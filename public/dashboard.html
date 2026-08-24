@@ -204,7 +204,7 @@
     <div class="side-head"><span>Employees</span><button class="add-employee" id="addEmployeeBtn">+ Add</button></div>
     <div class="employee-list" id="employeeList"></div>
     <div id="rosterSyncV23" class="roster-sync-v23">Connecting to your LearnWorlds team…</div>
-    <div class="side-footer">Training plans are still saved locally in this browser during this integration phase.</div>
+    <div class="side-footer">LearnWorlds supplies the roster. Training Manager data is stored in Postgres.</div>
   </aside>
   <section class="main">
     <div class="topbar">
@@ -354,16 +354,103 @@ function scheduleItems(p){ensurePathExtras(p);return [...p.events,...p.webinars.
 function typeLabel(k){return k==='video'?'Video':k==='call'?'Weekly Group Call':k==='webinar'?'Webinar / Workshop':'Custom Training'}
 function typeClass(k){return k==='video'?'type-video':k==='call'?'type-call':k==='webinar'?'type-webinar':'type-custom'}
 let db={employees:[],activeId:null}; let editingId=null;
-function persist(){localStorage.setItem('sales-fix-training-manager-v5',JSON.stringify(db))}
-function migrateEmployee(e){if(Array.isArray(e.paths)){e.paths=e.paths.map(ensurePathExtras);return e;}const p=makePath(e.path||'blank',e.startDate||iso(normalizeStart(iso(new Date()))),e.defaultTime||'08:00','');p.events=Array.isArray(e.events)?e.events:[];return{id:e.id||uid(),name:e.name||'Employee',manager:e.manager||'',notes:e.notes||'',paths:[p],activePathId:p.id}}
-function load(){try{let x=JSON.parse(localStorage.getItem('sales-fix-training-manager-v5'))||JSON.parse(localStorage.getItem('sales-fix-training-manager-v4'));if(!x){x=JSON.parse(localStorage.getItem('sales-fix-training-manager-v2'))}if(x&&Array.isArray(x.employees)){db={employees:x.employees.map(migrateEmployee),activeId:x.activeId};if(!db.activeId&&db.employees[0])db.activeId=db.employees[0].id;persist()}}catch(e){console.warn(e)}}
+let postgresReadyV24=false;
+let saveTimerV24=null;
+let saveInFlightV24=false;
+let pendingSaveV24=false;
+const lastSavedStateV24=new Map();
+
+function employeeStateForSaveV24(e){
+  return {
+    id:String(e.id),
+    learnWorldsId:String(e.learnWorldsId||e.id),
+    email:e.email||'',
+    name:e.name||'Employee',
+    manager:e.manager||'',
+    notes:e.notes||'',
+    paths:Array.isArray(e.paths)?e.paths:[],
+    activePathId:e.activePathId||null,
+    engagement:e.engagement||{fix:[],trainer:[]},
+    coachingNotes:Array.isArray(e.coachingNotes)?e.coachingNotes:[],
+    learnWorldsManaged:!!e.learnWorldsManaged,
+    learnWorldsStatus:e.learnWorldsStatus||'active',
+    learnWorldsTags:Array.isArray(e.learnWorldsTags)?e.learnWorldsTags:[]
+  };
+}
+
+async function flushPostgresV24(){
+  if(saveInFlightV24){pendingSaveV24=true;return}
+  if(!postgresReadyV24)return;
+  saveInFlightV24=true;
+  pendingSaveV24=false;
+
+  try{
+    for(const e of db.employees){
+      const state=employeeStateForSaveV24(e);
+      const serialized=JSON.stringify(state);
+      if(lastSavedStateV24.get(String(e.id))===serialized)continue;
+
+      const response=await fetch('/api/training-state',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'same-origin',
+        body:JSON.stringify({employeeId:String(e.id),state})
+      });
+
+      const payload=await response.json();
+      if(!response.ok)throw new Error(payload?.error||payload?.message||('Save failed ('+response.status+')'));
+      lastSavedStateV24.set(String(e.id),serialized);
+    }
+
+    const status=$('#rosterSyncV23');
+    if(status && !status.classList.contains('error')){
+      status.className='roster-sync-v23 ok';
+      status.innerHTML='<strong>Connected</strong><br>LearnWorlds roster · Postgres training data';
+    }
+  }catch(error){
+    console.error('Postgres save failed',error);
+    const status=$('#rosterSyncV23');
+    if(status){
+      status.className='roster-sync-v23 error';
+      status.innerHTML='<strong>Database save unavailable</strong><br>'+esc(error.message)+'. Local fallback is still active.';
+    }
+  }finally{
+    saveInFlightV24=false;
+    if(pendingSaveV24)flushPostgresV24();
+  }
+}
+
+function persist(){
+  // Emergency fallback only. Postgres is the primary store.
+  try{localStorage.setItem('sales-fix-training-manager-v5',JSON.stringify(db))}catch(e){}
+  clearTimeout(saveTimerV24);
+  saveTimerV24=setTimeout(flushPostgresV24,350);
+}
+
+function migrateEmployee(e){if(Array.isArray(e.paths)){e.paths=e.paths.map(ensurePathExtras);e.engagement=e.engagement||{fix:[],trainer:[]};e.coachingNotes=Array.isArray(e.coachingNotes)?e.coachingNotes:[];return e;}const p=makePath(e.path||'blank',e.startDate||iso(normalizeStart(iso(new Date()))),e.defaultTime||'08:00','');p.events=Array.isArray(e.events)?e.events:[];return{id:e.id||uid(),name:e.name||'Employee',manager:e.manager||'',notes:e.notes||'',paths:[p],activePathId:p.id,engagement:{fix:[],trainer:[]},coachingNotes:[]}}
+
+function load(){
+  // Clean cutover: do not import old local test data unless the server cannot load.
+  db={employees:[],activeId:null};
+}
+
+function loadLocalFallbackV24(){
+  try{
+    const x=JSON.parse(localStorage.getItem('sales-fix-training-manager-v5'));
+    if(x&&Array.isArray(x.employees)){
+      db={employees:x.employees.map(migrateEmployee),activeId:x.activeId};
+      if(!db.activeId&&db.employees[0])db.activeId=db.employees[0].id;
+      renderAll();
+    }
+  }catch(e){console.warn('Local fallback unavailable',e)}
+}
 function active(){return db.employees.find(e=>e.id===db.activeId)||null}
 function showToast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1700)}
-function engagementStore(){try{return JSON.parse(localStorage.getItem('sf_ot_engagement_v2')||'{}')}catch(e){return {}}}
-function engagementFor(e){const s=engagementStore();return s[String(e?.id||'')]||{fix:[],trainer:[]}}
-function coachingStore(){try{return JSON.parse(localStorage.getItem('sf_coaching_notes_v1')||'{}')}catch(e){return {}}}
-function coachingFor(e){const s=coachingStore();return s[String(e?.id||'')]||[]}
-function saveCoachingFor(e,items){const s=coachingStore();s[String(e.id)]=items;localStorage.setItem('sf_coaching_notes_v1',JSON.stringify(s))}
+function engagementStore(){const out={};for(const e of db.employees||[])out[String(e.id)]=e.engagement||{fix:[],trainer:[]};return out}
+function engagementFor(e){return e?.engagement||{fix:[],trainer:[]}}
+function coachingStore(){const out={};for(const e of db.employees||[])out[String(e.id)]=Array.isArray(e.coachingNotes)?e.coachingNotes:[];return out}
+function coachingFor(e){return Array.isArray(e?.coachingNotes)?e.coachingNotes:[]}
+function saveCoachingFor(e,items){if(!e)return;e.coachingNotes=items;persist()}
 function weekStartDate(v){const d=typeof v==='string'?date(v):new Date(v);d.setHours(12,0,0,0);const day=d.getDay()||7;d.setDate(d.getDate()-day+1);return d}
 function inWeek(v,start){const d=typeof v==='string'?date(v):new Date(v),s=weekStartDate(start),e=new Date(s);e.setDate(e.getDate()+7);return d>=s&&d<e}
 function ongoingWeekActivity(e,p,start){const eng=engagementFor(e),events=p?(typeof scheduleItems==='function'?scheduleItems(p):[...(p.events||[]),...(p.webinars||[])]):[];const completed=events.filter(x=>x.completed&&x.date&&inWeek(x.date,start));const fix=(eng.fix||[]).filter(x=>x.date&&inWeek(x.date,start));const trainer=(eng.trainer||[]).filter(x=>x.date&&inWeek(x.date,start));return{completed,fix,trainer,total:completed.length+fix.length+trainer.length}}
@@ -493,59 +580,38 @@ async function syncLearnWorldsRosterV23(){
   const status=$('#rosterSyncV23');
   if(status){
     status.className='roster-sync-v23';
-    status.textContent='Connecting to your LearnWorlds team…';
+    status.textContent='Connecting to LearnWorlds and Postgres…';
   }
 
   try{
-    const response=await fetch('/api/manager-team',{cache:'no-store',credentials:'same-origin'});
-    const payload=await response.json();
+    const [teamResponse,stateResponse]=await Promise.all([
+      fetch('/api/manager-team',{cache:'no-store',credentials:'same-origin'}),
+      fetch('/api/training-state',{cache:'no-store',credentials:'same-origin'})
+    ]);
 
-    if(!response.ok){
-      throw new Error(payload?.error||payload?.message||('Team sync failed ('+response.status+')'));
-    }
+    const teamPayload=await teamResponse.json();
+    const statePayload=await stateResponse.json();
 
-    const team=Array.isArray(payload.employees)?payload.employees:[];
+    if(!teamResponse.ok)throw new Error(teamPayload?.error||teamPayload?.message||('Team sync failed ('+teamResponse.status+')'));
+    if(!stateResponse.ok)throw new Error(statePayload?.error||statePayload?.message||('Database load failed ('+stateResponse.status+')'));
+
+    const team=Array.isArray(teamPayload.employees)?teamPayload.employees:[];
+    const savedRecords=new Map(
+      (Array.isArray(statePayload.records)?statePayload.records:[])
+        .map(r=>[String(r.employeeId),r.state])
+    );
+
     const managerName=[
-      payload?.manager?.firstName||'',
-      payload?.manager?.lastName||''
-    ].join(' ').trim() || payload?.manager?.email || '';
-
-    const existingById=new Map(db.employees.map(e=>[String(e.id),e]));
-    const incomingIds=new Set(team.map(x=>String(x.id)));
-
-    // Archive local/manual employees that are no longer part of the authenticated
-    // LearnWorlds team. This keeps prototype data recoverable while removing those
-    // people from the manager's active roster.
-    const removed=db.employees.filter(e=>!incomingIds.has(String(e.id)));
-    if(removed.length){
-      try{
-        const archive=JSON.parse(localStorage.getItem('sales-fix-training-manager-roster-archive-v1')||'{}');
-        removed.forEach(e=>{archive[String(e.id)]={employee:e,archivedAt:new Date().toISOString()}});
-        localStorage.setItem('sales-fix-training-manager-roster-archive-v1',JSON.stringify(archive));
-      }catch(err){
-        console.warn('Unable to archive old roster entries',err);
-      }
-    }
+      teamPayload?.manager?.firstName||'',
+      teamPayload?.manager?.lastName||''
+    ].join(' ').trim() || teamPayload?.manager?.email || '';
 
     const synced=team.map(member=>{
-      const old=existingById.get(String(member.id));
-      if(old){
-        old.id=String(member.id);
-        old.learnWorldsId=String(member.id);
-        old.email=member.email||old.email||'';
-        old.name=member.fullName||[member.firstName,member.lastName].filter(Boolean).join(' ')||member.email||old.name;
-        old.manager=managerName;
-        old.learnWorldsManaged=true;
-        old.learnWorldsStatus=member.status||'active';
-        old.learnWorldsTags=Array.isArray(member.tags)?member.tags:[];
-        old.paths=Array.isArray(old.paths)?old.paths.map(ensurePathExtras):[];
-        if(old.activePathId && !old.paths.some(p=>p.id===old.activePathId)){
-          old.activePathId=old.paths.at(-1)?.id||null;
-        }
-        return old;
-      }
+      const raw=savedRecords.get(String(member.id));
+      // Ignore the earlier test record or any malformed record.
+      const validSaved=raw && typeof raw==='object' && Array.isArray(raw.paths) ? migrateEmployee({...raw}) : null;
 
-      return {
+      const e=validSaved || {
         id:String(member.id),
         learnWorldsId:String(member.id),
         email:member.email||'',
@@ -554,33 +620,62 @@ async function syncLearnWorldsRosterV23(){
         notes:'',
         paths:[],
         activePathId:null,
+        engagement:{fix:[],trainer:[]},
+        coachingNotes:[],
         learnWorldsManaged:true,
         learnWorldsStatus:member.status||'active',
         learnWorldsTags:Array.isArray(member.tags)?member.tags:[]
       };
+
+      // LearnWorlds remains authoritative for identity/roster fields.
+      e.id=String(member.id);
+      e.learnWorldsId=String(member.id);
+      e.email=member.email||e.email||'';
+      e.name=member.fullName||[member.firstName,member.lastName].filter(Boolean).join(' ')||member.email||e.name;
+      e.manager=managerName;
+      e.learnWorldsManaged=true;
+      e.learnWorldsStatus=member.status||'active';
+      e.learnWorldsTags=Array.isArray(member.tags)?member.tags:[];
+      e.paths=Array.isArray(e.paths)?e.paths.map(ensurePathExtras):[];
+      e.engagement=e.engagement||{fix:[],trainer:[]};
+      e.coachingNotes=Array.isArray(e.coachingNotes)?e.coachingNotes:[];
+      if(e.activePathId && !e.paths.some(p=>p.id===e.activePathId))e.activePathId=e.paths.at(-1)?.id||null;
+
+      return e;
     });
 
     db.employees=synced;
-
     if(!db.activeId || !db.employees.some(e=>String(e.id)===String(db.activeId))){
       db.activeId=db.employees[0]?.id||null;
     }
 
-    persist();
+    lastSavedStateV24.clear();
+    for(const e of db.employees){
+      const raw=savedRecords.get(String(e.id));
+      if(raw && typeof raw==='object' && Array.isArray(raw.paths)){
+        lastSavedStateV24.set(String(e.id),JSON.stringify(employeeStateForSaveV24(e)));
+      }
+    }
+
+    postgresReadyV24=true;
+    try{localStorage.setItem('sales-fix-training-manager-v5',JSON.stringify(db))}catch(e){}
     renderAll();
 
     if(status){
       status.className='roster-sync-v23 ok';
-      status.innerHTML='<strong>LearnWorlds connected</strong><br>'+
+      status.innerHTML='<strong>Connected</strong><br>'+
         db.employees.length+' employee'+(db.employees.length===1?'':'s')+
-        ' loaded from '+esc(payload?.seatOffering?.title||'your team')+'.';
+        ' from '+esc(teamPayload?.seatOffering?.title||'LearnWorlds')+
+        ' · Postgres persistence active';
     }
   }catch(error){
-    console.error('LearnWorlds roster sync failed',error);
+    console.error('Server-backed dashboard load failed',error);
+    postgresReadyV24=false;
+    loadLocalFallbackV24();
     if(status){
       status.className='roster-sync-v23 error';
-      status.innerHTML='<strong>Team sync unavailable</strong><br>'+esc(error.message)+
-        '. Showing locally saved data for now.';
+      status.innerHTML='<strong>Server connection unavailable</strong><br>'+esc(error.message)+
+        '. Showing local fallback data if available.';
     }
   }
 }
@@ -1229,9 +1324,8 @@ const mo=new MutationObserver(function(){clearTimeout(window.__ongoingV28);windo
 
 <script id="ongoing-engagement-v2-script">
 (function(){
-const KEY='sf_ot_engagement_v2';
-function data(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}}
-function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
+function data(){const out={};try{for(const e of db.employees||[])out[String(e.id)]=e.engagement||{fix:[],trainer:[]}}catch(e){}return out}
+function save(x){const e=currentEmployee();if(!e)return;const next=x[String(e.id)]||{fix:[],trainer:[]};e.engagement=next;if(typeof persist==='function')persist()}
 function currentEmployee(){try{return typeof db!=='undefined'&&Array.isArray(db.employees)?db.employees.find(x=>x.id===db.activeId)||null:null}catch(e){return null}}
 function employeeKey(){const e=currentEmployee();return e?String(e.id):'default'}
 function currentPath(){const e=currentEmployee();return e&&typeof activePath==='function'?activePath(e):null}
