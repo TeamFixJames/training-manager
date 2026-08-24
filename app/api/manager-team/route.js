@@ -165,7 +165,6 @@ const managedSeat = managerSeats[0];
       additionalSeatOfferings: Math.max(
   0,
   managerSeats.length - 1
-)
       )
     });
   } catch (error) {
