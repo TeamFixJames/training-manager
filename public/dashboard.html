@@ -559,7 +559,7 @@ function closeEmployeeModal(){$('#employeeModal').classList.remove('show')}
 function saveEmployee(){const name=$('#empName').value.trim();if(!name){alert('Please enter an employee name.');return}const manager=$('#mgrName').value.trim(),notes=$('#empNotes').value;if(editingId){const e=db.employees.find(x=>x.id===editingId);if(!e.learnWorldsManaged){e.name=name;e.manager=manager}e.notes=notes;db.activeId=e.id;persist()}else{const start=$('#empStart').value,time=$('#empTime').value||'08:00',type=$('input[name="path"]:checked').value,p=makePath(type,start,time);const e={id:uid(),name,manager,notes,paths:[p],activePathId:p.id};db.employees.push(e);db.activeId=e.id;persist()}closeEmployeeModal();renderAll();showToast(editingId?'Employee updated':'Employee added')}
 function openPathModal(){const e=active();if(!e)return;const p=activePath(e);let start=iso(normalizeStart(iso(new Date())));if(p?.events?.length){const last=p.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).at(-1);if(last)start=iso(nextBusinessDay(last.date))}$('#pathStart').value=start;$('#pathTime').value=p?.defaultTime||'08:00';$('#pathNotes').value='';$$('input[name="newPath"]').forEach(r=>r.checked=r.value==='ongoing');$('#pathModal').classList.add('show')}
 function closePathModal(){$('#pathModal').classList.remove('show')}
-function savePath(){const e=active();if(!e)return;const type=$('input[name="newPath"]:checked').value,start=$('#pathStart').value,time=$('#pathTime').value||'08:00',notes=$('#pathNotes').value;if(!start){alert('Please choose a start date.');return}const p=makePath(type,start,time,notes);e.paths.push(p);e.activePathId=p.id;persist();closePathModal();renderAll();showToast(`${pathName(type)} added`);requestLearnWorldsSyncV27(e)}
+function savePath(){const e=active();if(!e)return;const type=$('input[name="newPath"]:checked').value,start=$('#pathStart').value,time=$('#pathTime').value||'08:00',notes=$('#pathNotes').value;if(!start){alert('Please choose a start date.');return}const p=makePath(type,start,time,notes);e.paths.push(p);e.activePathId=p.id;persist();closePathModal();renderAll();showToast(`${pathName(type)} added`);requestTrainingActivitySyncV29(e)}
 function openGroupCallModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#groupCallName').value='Weekly Group Call';$('#groupCallDay').value='3';$('#groupCallTime').value='12:00';$('#groupCallDuration').value='01:00:00';$('#groupCallModal').classList.add('show')}
 function closeGroupCallModal(){$('#groupCallModal').classList.remove('show')}
 function saveGroupCall(){const p=activePath(active());if(!p)return;ensurePathExtras(p);p.weeklyCalls.push({id:uid(),title:$('#groupCallName').value.trim()||'Weekly Group Call',weekday:Number($('#groupCallDay').value),time:$('#groupCallTime').value||'12:00',duration:'01:00:00',completedDates:[]});persist();closeGroupCallModal();renderAll();showToast('Weekly Group Call added across schedule')}
@@ -697,128 +697,12 @@ async function syncLearnWorldsRosterV23(){
 }
 
 
-let lwProgressSyncInFlightV25 = new Set();
-let lwProgressLastCheckedV25 = new Map();
 
+let trainingActivitySyncInFlightV29 = false;
+let trainingActivityLastCheckedV29 = 0;
+let trainingActivityRetryTimerV29 = null;
 
-function normalizeLwTitleV26(value=''){
-  return String(value)
-    .toLowerCase()
-    .replace(/[’‘`]/g,"'")
-    .replace(/&/g,' and ')
-    .replace(/\bq\.?\s*c\.?\b/g,'qc')
-    .replace(/\bhigh[-\s]*level\b/g,'high level')
-    .replace(/[^a-z0-9]+/g,' ')
-    .replace(/\bthe\b/g,' ')
-    .replace(/\s+/g,' ')
-    .trim();
-}
-
-const certificationTitleAliasesV26 = new Map([
-  [normalizeLwTitleV26('Now What?!'), normalizeLwTitleV26('Now What!?')],
-  [normalizeLwTitleV26('Selling a Complicated Job'), normalizeLwTitleV26('Selling Complicated Jobs')],
-  [normalizeLwTitleV26('Q.C. Lite'), normalizeLwTitleV26('QC Lite')],
-  [normalizeLwTitleV26('Speaking in Layman’s Terms'), normalizeLwTitleV26("Speaking in Layman's Terms")],
-  [normalizeLwTitleV26('Don’t Be Afraid'), normalizeLwTitleV26("Don't Be Afraid")],
-  [normalizeLwTitleV26('Fear of Dealing with an Upset Customer'), normalizeLwTitleV26('Fear of Dealing With an Upset Customer')],
-  [normalizeLwTitleV26('Technician Quote & Close Ratio'), normalizeLwTitleV26('Technician Quote and Close Ratio')],
-  [normalizeLwTitleV26('Difference Between Gross Profit & Markup'), normalizeLwTitleV26('Difference Between Gross Profit and Markup')],
-  [normalizeLwTitleV26('Why Scripting is Important'), normalizeLwTitleV26('Why Scripting Is Important')],
-  [normalizeLwTitleV26('Delivering Good News vs Bad News'), normalizeLwTitleV26('Delivering Good News vs. Bad News')],
-  [normalizeLwTitleV26('Overcoming No’s and Objections'), normalizeLwTitleV26("Overcoming No's and Objections")],
-  [normalizeLwTitleV26('Under Promising and Always Over Delivering'), normalizeLwTitleV26('Under Promising and Over Delivering')],
-  [normalizeLwTitleV26('Selling From Your Wallet vs. Our Customers’'), normalizeLwTitleV26("Selling From Your Wallet vs. Our Customers'")],
-  [normalizeLwTitleV26('Why Can’t I Close?'), normalizeLwTitleV26("Why Can't I Close?")],
-  [normalizeLwTitleV26('Pivoting the Script'), normalizeLwTitleV26('Pivoting The Script')],
-  [normalizeLwTitleV26('Rules For Discounting'), normalizeLwTitleV26('Rules for Discounting')]
-]);
-
-function normalizedCertTitleV26(title){
-  const n=normalizeLwTitleV26(title);
-  return certificationTitleAliasesV26.get(n)||n;
-}
-
-function certCourseForEventV26(path,event){
-  if(path?.type!=='cert') return '';
-  const section=String(event?.section||'');
-  const match=section.match(/SECTION\s+(\d+)/i);
-  const number=Number(match?.[1]||0);
-  if(number>=1 && number<=5) return 'foundations';
-  if(number>=6 && number<=10) return 'advanced';
-  return '';
-}
-
-function findCertificationActivityV26(path,event,activities){
-  const courseId=certCourseForEventV26(path,event);
-  if(!courseId) return null;
-
-  const wanted=normalizedCertTitleV26(event?.title||'');
-  const candidates=activities.filter(a =>
-    a?.type==='video' &&
-    a?.courseId===courseId &&
-    normalizedCertTitleV26(a?.title||'')===wanted
-  );
-
-  return candidates.length===1 ? candidates[0] : null;
-}
-
-function allEmployeeEventsV25(employee){
-  const out=[];
-  for(const path of (employee?.paths||[])){
-    for(const event of (path?.events||[])){
-      out.push({path,event});
-    }
-  }
-  return out;
-}
-
-function isSchoolVideoEventV25(event){
-  return !!(
-    event &&
-    event.lwUnitId &&
-    (
-      event.type === 'video' ||
-      event.kind === 'video' ||
-      event.activityType === 'video' ||
-      event.sourceUrl ||
-      event.url
-    )
-  );
-}
-
-function eventAlreadyCompleteV25(event){
-  return event?.completed === true ||
-         event?.isCompleted === true ||
-         event?.status === 'completed';
-}
-
-function applyLearnWorldsCompletionV25(event, activity){
-  // Preserve the dashboard's existing completion fields while adding
-  // LearnWorlds metadata for reporting/debugging.
-  event.completed = true;
-  if ('isCompleted' in event) event.isCompleted = true;
-  if ('status' in event) event.status = 'completed';
-
-  event.lwCompleted = true;
-  event.lwProgress = Number(activity?.progress || 100);
-  event.lwTimeSpentSeconds = Number(activity?.timeSpentSeconds || 0);
-  event.lwDurationSeconds =
-    typeof activity?.durationSeconds === 'number'
-      ? activity.durationSeconds
-      : (event.lwDurationSeconds ?? null);
-  event.lwCourseId = event.lwCourseId || activity?.courseId || '';
-  event.lwUnitId = event.lwUnitId || activity?.unitId || '';
-  event.lwLastSyncedAt = new Date().toISOString();
-
-  // Do not invent a historical completion date because the progress
-  // endpoint currently does not provide a per-unit completed_at value.
-  if (!event.completedAt && !event.completedDate && !event.dateCompleted) {
-    event.lwCompletionDetectedAt = event.lwCompletionDetectedAt || new Date().toISOString();
-  }
-}
-
-
-function setTrainingActivityStatusV28(mode='ok',label='Up to date'){
+function setTrainingActivityStatusV29(mode='ok',label='Up to date'){
   let el=document.getElementById('trainingActivityStatusV28');
   if(!el){
     const host=document.getElementById('rosterSyncV23');
@@ -831,156 +715,160 @@ function setTrainingActivityStatusV28(mode='ok',label='Up to date'){
   el.textContent='Training Activity · '+label;
 }
 
-async function syncEmployeeLearnWorldsProgressV25(employee, {force=false}={}){
-  if(!employee?.id || !employee?.learnWorldsManaged) return {changed:false, matched:0};
+function replaceEmployeeStateFromServerV29(employeeId,state){
+  const index=db.employees.findIndex(e=>String(e.id)===String(employeeId));
+  if(index<0 || !state || typeof state!=='object')return;
 
-  const employeeId=String(employee.id);
-  const now=Date.now();
-  const last=lwProgressLastCheckedV25.get(employeeId)||0;
+  const existing=db.employees[index];
 
-  // Avoid hammering LearnWorlds while managers click around quickly.
-  if(!force && now-last < 15000) return {changed:false, matched:0, skipped:true};
-  if(lwProgressSyncInFlightV25.has(employeeId)){
-    if(force){
-      setTimeout(()=>{
-        const latest=db.employees.find(e=>String(e.id)===employeeId);
-        if(latest) syncEmployeeLearnWorldsProgressV25(latest,{force:true});
-      },1200);
-    }
-    return {changed:false, matched:0, skipped:true};
+  // The server state is authoritative for Training Manager data.
+  // Keep current roster identity fields authoritative from the team roster.
+  const merged={
+    ...existing,
+    ...state,
+    id:String(existing.id),
+    learnWorldsId:String(existing.learnWorldsId||existing.id),
+    email:existing.email||state.email||'',
+    name:existing.name||state.name||'Employee',
+    manager:existing.manager||state.manager||'',
+    learnWorldsManaged:true,
+    learnWorldsStatus:existing.learnWorldsStatus||state.learnWorldsStatus||'active',
+    learnWorldsTags:Array.isArray(existing.learnWorldsTags)
+      ? existing.learnWorldsTags
+      : (Array.isArray(state.learnWorldsTags)?state.learnWorldsTags:[])
+  };
+
+  merged.paths=Array.isArray(merged.paths)?merged.paths.map(ensurePathExtras):[];
+  merged.engagement=merged.engagement||{fix:[],trainer:[]};
+  merged.coachingNotes=Array.isArray(merged.coachingNotes)?merged.coachingNotes:[];
+
+  db.employees[index]=merged;
+
+  // Keep the emergency local fallback current without triggering another API save.
+  try{
+    localStorage.setItem('sales-fix-training-manager-v5',JSON.stringify(db));
+  }catch(e){}
+
+  if(typeof lastSavedStateV24!=='undefined'){
+    try{
+      lastSavedStateV24.set(
+        String(merged.id),
+        JSON.stringify(employeeStateForSaveV24(merged))
+      );
+    }catch(e){}
+  }
+}
+
+async function syncTrainingActivityServerV29(employee,{force=false}={}){
+  if(!employee?.id || !employee?.learnWorldsManaged){
+    return {changed:false,skipped:true};
   }
 
-  lwProgressSyncInFlightV25.add(employeeId);
-  setTrainingActivityStatusV28('checking','Checking…');
+  const now=Date.now();
+
+  if(!force && now-trainingActivityLastCheckedV29<15000){
+    return {changed:false,skipped:true};
+  }
+
+  if(trainingActivitySyncInFlightV29){
+    if(force){
+      clearTimeout(trainingActivityRetryTimerV29);
+      trainingActivityRetryTimerV29=setTimeout(()=>{
+        const latest=active();
+        if(latest)syncTrainingActivityServerV29(latest,{force:true});
+      },1400);
+    }
+    return {changed:false,skipped:true};
+  }
+
+  trainingActivitySyncInFlightV29=true;
+  setTrainingActivityStatusV29('checking','Checking…');
 
   try{
-    const response=await fetch(
-      '/api/training-progress?userId='+encodeURIComponent(employeeId),
-      {cache:'no-store',credentials:'same-origin'}
-    );
+    const response=await fetch('/api/sync-training-progress',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
+      cache:'no-store',
+      body:JSON.stringify({employeeId:String(employee.id)})
+    });
+
     const payload=await response.json();
 
     if(!response.ok || payload?.success===false){
-      throw new Error(payload?.error||payload?.message||('LearnWorlds sync failed ('+response.status+')'));
+      throw new Error(
+        payload?.error ||
+        payload?.message ||
+        ('Training activity check failed ('+response.status+')')
+      );
     }
 
-    lwProgressLastCheckedV25.set(employeeId,Date.now());
-    setTrainingActivityStatusV28('ok','Up to date');
+    trainingActivityLastCheckedV29=Date.now();
 
-    const activities=Array.isArray(payload?.activities)?payload.activities:[];
-    const byUnitId=new Map(
-      activities
-        .filter(a=>a?.unitId)
-        .map(a=>[String(a.unitId),a])
-    );
-
-    let changed=false;
-    let matched=0;
-
-    for(const {path,event} of allEmployeeEventsV25(employee)){
-      if(event?.kind!=='video') continue;
-
-      let activity=null;
-
-      // Normal Ongoing Training path: stable unit ID match.
-      if(event.lwUnitId){
-        activity=byUnitId.get(String(event.lwUnitId))||null;
-      }
-
-      // Certification path: these items historically had no IDs in the
-      // dashboard, so resolve them once by their known LW course + title,
-      // then persist the stable IDs for all future syncs.
-      if(!activity && path?.type==='cert'){
-        activity=findCertificationActivityV26(path,event,activities);
-        if(activity){
-          if(!event.lwCourseId || !event.lwUnitId){
-            event.lwCourseId=activity.courseId||certCourseForEventV26(path,event);
-            event.lwUnitId=activity.unitId||'';
-            changed=true;
-          }
-        }
-      }
-
-      if(!activity) continue;
-      matched++;
-
-      // LearnWorlds may contain partial progress. Only completed=true can
-      // turn a Training Manager item into completed.
-      if(activity.completed === true && !eventAlreadyCompleteV25(event)){
-        applyLearnWorldsCompletionV25(event,activity);
-        changed=true;
-      } else if(activity.completed === true && eventAlreadyCompleteV25(event)){
-        const nextTime=Number(activity?.timeSpentSeconds||0);
-        const nextProgress=Number(activity?.progress||100);
-        if(
-          event.lwCompleted !== true ||
-          Number(event.lwTimeSpentSeconds||0)!==nextTime ||
-          Number(event.lwProgress||0)!==nextProgress
-        ){
-          event.lwCompleted=true;
-          event.lwTimeSpentSeconds=nextTime;
-          event.lwProgress=nextProgress;
-          event.lwDurationSeconds =
-            typeof activity?.durationSeconds === 'number'
-              ? activity.durationSeconds
-              : (event.lwDurationSeconds ?? null);
-          event.lwLastSyncedAt=new Date().toISOString();
-          changed=true;
-        }
-      }
+    if(payload?.state){
+      replaceEmployeeStateFromServerV29(employee.id,payload.state);
     }
 
-    employee.lwProgressLastCheckedAt=new Date().toISOString();
-    employee.lwProgressSummary=payload?.summary||null;
+    renderAll();
+    setTrainingActivityStatusV29('ok','Up to date');
 
-    if(changed){
-      persist();
-      renderAll();
-      if(typeof showToast==='function'){
-        showToast('Training activity updated');
-      }
+    if(payload?.newlyCompleted>0 && typeof showToast==='function'){
+      showToast(
+        payload.newlyCompleted===1
+          ? '1 training activity updated'
+          : payload.newlyCompleted+' training activities updated'
+      );
     }
 
-    return {changed,matched,summary:payload?.summary||null};
+    return payload;
   }catch(error){
     console.error('Training activity sync failed',error);
-    setTrainingActivityStatusV28('error','Retrying automatically');
-    return {changed:false,matched:0,error:error.message};
+    setTrainingActivityStatusV29('error','Retrying automatically');
+    return {success:false,changed:false,error:error.message};
   }finally{
-    lwProgressSyncInFlightV25.delete(employeeId);
+    trainingActivitySyncInFlightV29=false;
   }
 }
 
-function requestLearnWorldsSyncV27(employee){
-  if(!employee) return;
-  setTimeout(()=>syncEmployeeLearnWorldsProgressV25(employee,{force:true}),700);
-  setTimeout(()=>syncEmployeeLearnWorldsProgressV25(employee,{force:true}),2600);
+function requestTrainingActivitySyncV29(employee){
+  if(!employee)return;
+
+  // Allow the normal Training Manager save to reach Postgres first,
+  // then let the server compare that fresh state with training activity.
+  setTimeout(()=>syncTrainingActivityServerV29(employee,{force:true}),900);
+
+  // Retry once in case the first request overlapped a state save.
+  setTimeout(()=>{
+    const latest=active();
+    if(latest && String(latest.id)===String(employee.id)){
+      syncTrainingActivityServerV29(latest,{force:true});
+    }
+  },3000);
 }
 
-function syncActiveEmployeeLearnWorldsV25(options){
-  const employee=currentEmployee();
-  if(employee) return syncEmployeeLearnWorldsProgressV25(employee,options);
-}
-
-// Watch for employee changes and sync the newly selected employee.
-let lastActiveEmployeeForLwSyncV25=null;
+// Sync immediately when the selected employee changes.
+let lastActiveEmployeeForTrainingSyncV29=null;
 setInterval(()=>{
-  const employee=currentEmployee();
+  const employee=active();
   const id=employee?String(employee.id):null;
-  if(id && id!==lastActiveEmployeeForLwSyncV25){
-    lastActiveEmployeeForLwSyncV25=id;
-    syncEmployeeLearnWorldsProgressV25(employee,{force:true});
-  }
-},500);
 
-// Refresh the selected employee's LearnWorlds progress while the dashboard stays open.
+  if(id && id!==lastActiveEmployeeForTrainingSyncV29){
+    lastActiveEmployeeForTrainingSyncV29=id;
+    syncTrainingActivityServerV29(employee,{force:true});
+  }
+},600);
+
+// Keep the currently selected employee current while the dashboard is open.
 setInterval(()=>{
-  const employee=currentEmployee();
-  if(employee) syncEmployeeLearnWorldsProgressV25(employee);
+  const employee=active();
+  if(employee)syncTrainingActivityServerV29(employee);
 },15000);
 
-// Also sync the active employee shortly after initial roster/database load.
-setTimeout(()=>syncActiveEmployeeLearnWorldsV25({force:true}),1800);
+// Initial check after roster/state load.
+setTimeout(()=>{
+  const employee=active();
+  if(employee)syncTrainingActivityServerV29(employee,{force:true});
+},2200);
 
 load();renderAll();syncLearnWorldsRosterV23();
 </script>
@@ -1559,7 +1447,7 @@ function fillVideos(){const lib=q('#libraryVideoLibrary')?.value;if(!lib)return;
 function showDetails(){const v=selectedItem(),box=q('#libraryVideoDetails');if(!box)return;if(!v){box.textContent='No matching video selected.';return}box.innerHTML=`<b style="color:#344054">${v.title}</b>${v.duration?`<br><b>Runtime:</b> ${v.duration}`:''}${v.trainer?`<br><b>Trainer:</b> ${v.trainer}`:''}${v.tags?`<br><b>Topics:</b> ${v.tags.split(',').slice(0,6).join(', ')}`:''}`}
 function openLibraryVideoModal(){const p=activeP();if(!p||p.type!=='ongoing')return;fillLibraries();q('#libraryVideoSearch').value='';q('#libraryVideoDate').value=iso(new Date());q('#libraryVideoTime').value=p.defaultTime||'08:00';fillVideos();q('#libraryVideoModal').classList.add('show')}
 function closeLibraryVideoModal(){q('#libraryVideoModal')?.classList.remove('show')}
-function saveLibraryVideo(){const p=activeP(),lib=q('#libraryVideoLibrary').value,v=selectedItem(),dt=q('#libraryVideoDate').value,tm=q('#libraryVideoTime').value||p.defaultTime||'08:00';if(!p||!v||!dt){alert('Please choose a video and training date.');return}ensurePathExtras(p);const ids=learnWorldsIdsFromUrl(v.url||'');p.events.push({id:uid(),kind:'video',date:dt,section:lib,title:v.title,duration:v.duration||'',time:tm,completed:false,fixMyCall:false,callTrainer:false,notes:'',trainer:v.trainer||'',sourceUrl:v.url||'',lwCourseId:ids.courseId||'',lwUnitId:ids.unitId||''});persist();closeLibraryVideoModal();renderAll();showToast('School video added to Ongoing Training');const e=currentEmployee();if(e)requestLearnWorldsSyncV27(e)}
+function saveLibraryVideo(){const p=activeP(),lib=q('#libraryVideoLibrary').value,v=selectedItem(),dt=q('#libraryVideoDate').value,tm=q('#libraryVideoTime').value||p.defaultTime||'08:00';if(!p||!v||!dt){alert('Please choose a video and training date.');return}ensurePathExtras(p);const ids=learnWorldsIdsFromUrl(v.url||'');p.events.push({id:uid(),kind:'video',date:dt,section:lib,title:v.title,duration:v.duration||'',time:tm,completed:false,fixMyCall:false,callTrainer:false,notes:'',trainer:v.trainer||'',sourceUrl:v.url||'',lwCourseId:ids.courseId||'',lwUnitId:ids.unitId||''});persist();closeLibraryVideoModal();renderAll();showToast('School video added to Ongoing Training');const e=active();if(e)requestTrainingActivitySyncV29(e)}
 function enhanceOngoingControls(){const p=activeP();if(!p||p.type!=='ongoing')return;const btn=q('#addSessionBtn');if(btn){btn.textContent='+ School Video';btn.onclick=openLibraryVideoModal;}const tools=btn?.closest('.schedule-tools');if(tools&&!q('#addCustomOngoingBtn')){const b=document.createElement('button');b.className='btn';b.id='addCustomOngoingBtn';b.textContent='+ Custom Training Item';b.onclick=openCustomTrainingModal;tools.appendChild(b)}const help=q('.supplemental-help');if(help)help.innerHTML='<b>Assign from the school:</b> choose from 8 post-certification libraries and 184 videos. Use Custom Training Item for role-play, practice, outside resources, or other manager-created activities.<div class="ongoing-library-counts">'+prettyCount()+'</div>'}
 document.addEventListener('DOMContentLoaded',function(){q('#closeLibraryVideoModal').onclick=closeLibraryVideoModal;q('#cancelLibraryVideoModal').onclick=closeLibraryVideoModal;q('#saveLibraryVideoBtn').onclick=saveLibraryVideo;q('#libraryVideoLibrary').onchange=fillVideos;q('#libraryVideoSearch').oninput=fillVideos;q('#libraryVideoSelect').onchange=showDetails;q('#libraryVideoModal').onclick=e=>{if(e.target===q('#libraryVideoModal'))closeLibraryVideoModal()};setTimeout(enhanceOngoingControls,100)});
 document.addEventListener('click',function(){setTimeout(enhanceOngoingControls,20)},true);
