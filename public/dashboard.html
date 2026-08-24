@@ -174,6 +174,26 @@
 }
 </style>
 
+
+<style id="learnworlds-roster-v23-css">
+#addEmployeeBtn,
+#removeEmployeeBtn{
+  display:none !important;
+}
+.roster-sync-v23{
+  padding:10px 12px;
+  margin:8px 10px 0;
+  border-radius:8px;
+  background:rgba(255,255,255,.06);
+  color:#aebed1;
+  font-size:10px;
+  line-height:1.45;
+}
+.roster-sync-v23 strong{color:#fff}
+.roster-sync-v23.error{background:rgba(190,44,44,.13);color:#f0b4b4}
+.roster-sync-v23.ok{background:rgba(32,143,82,.12);color:#b8e5ca}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -183,7 +203,8 @@
     <button class="team-overview-nav" id="reportsBtnV16" type="button"><span class="team-overview-icon">▤</span><span><b>Reports</b><small>Employee training activity</small></span></button>
     <div class="side-head"><span>Employees</span><button class="add-employee" id="addEmployeeBtn">+ Add</button></div>
     <div class="employee-list" id="employeeList"></div>
-    <div class="side-footer">Prototype data is saved locally in this browser only. No school account or database is connected yet.</div>
+    <div id="rosterSyncV23" class="roster-sync-v23">Connecting to your LearnWorlds team…</div>
+    <div class="side-footer">Training plans are still saved locally in this browser during this integration phase.</div>
   </aside>
   <section class="main">
     <div class="topbar">
@@ -432,9 +453,9 @@ function removeSelectedPath(){
     }
   );
 }
-function openEmployeeModal(id=null){editingId=id;const e=id?db.employees.find(x=>x.id===id):null;$('#modalTitle').textContent=e?'Employee Settings':'Add Employee';$('#saveEmployeeBtn').textContent=e?'Save Changes':'Add Employee';$('#empName').value=e?.name||'';$('#mgrName').value=e?.manager||'';$('#empStart').value=iso(normalizeStart(iso(new Date())));$('#empTime').value='08:00';$('#empNotes').value=e?.notes||'';$$('input[name="path"]').forEach(r=>r.checked=r.value==='cert');const pathField=$$('input[name="path"]')[0]?.closest('.field');if(pathField)pathField.style.display=e?'none':'block';$('#certHint').textContent=e?'Training paths are managed separately using “Add Training Path.”':`Path to Certification contains ${certVideos.length} videos totaling ${formatSeconds(totalCertSeconds)}. At one video per business day, it spans ${Math.ceil(certVideos.length/5)} training weeks.`;$('#employeeModal').classList.add('show')}
+function openEmployeeModal(id=null){editingId=id;const e=id?db.employees.find(x=>x.id===id):null;$('#modalTitle').textContent=e?'Employee Settings':'Add Employee';$('#saveEmployeeBtn').textContent=e?'Save Changes':'Add Employee';$('#empName').value=e?.name||'';$('#mgrName').value=e?.manager||'';$('#empName').readOnly=!!e?.learnWorldsManaged;$('#mgrName').readOnly=!!e?.learnWorldsManaged;$('#empStart').value=iso(normalizeStart(iso(new Date())));$('#empTime').value='08:00';$('#empNotes').value=e?.notes||'';$$('input[name="path"]').forEach(r=>r.checked=r.value==='cert');const pathField=$$('input[name="path"]')[0]?.closest('.field');if(pathField)pathField.style.display=e?'none':'block';$('#certHint').textContent=e?'Training paths are managed separately using “Add Training Path.”':`Path to Certification contains ${certVideos.length} videos totaling ${formatSeconds(totalCertSeconds)}. At one video per business day, it spans ${Math.ceil(certVideos.length/5)} training weeks.`;$('#employeeModal').classList.add('show')}
 function closeEmployeeModal(){$('#employeeModal').classList.remove('show')}
-function saveEmployee(){const name=$('#empName').value.trim();if(!name){alert('Please enter an employee name.');return}const manager=$('#mgrName').value.trim(),notes=$('#empNotes').value;if(editingId){const e=db.employees.find(x=>x.id===editingId);e.name=name;e.manager=manager;e.notes=notes;db.activeId=e.id;persist()}else{const start=$('#empStart').value,time=$('#empTime').value||'08:00',type=$('input[name="path"]:checked').value,p=makePath(type,start,time);const e={id:uid(),name,manager,notes,paths:[p],activePathId:p.id};db.employees.push(e);db.activeId=e.id;persist()}closeEmployeeModal();renderAll();showToast(editingId?'Employee updated':'Employee added')}
+function saveEmployee(){const name=$('#empName').value.trim();if(!name){alert('Please enter an employee name.');return}const manager=$('#mgrName').value.trim(),notes=$('#empNotes').value;if(editingId){const e=db.employees.find(x=>x.id===editingId);if(!e.learnWorldsManaged){e.name=name;e.manager=manager}e.notes=notes;db.activeId=e.id;persist()}else{const start=$('#empStart').value,time=$('#empTime').value||'08:00',type=$('input[name="path"]:checked').value,p=makePath(type,start,time);const e={id:uid(),name,manager,notes,paths:[p],activePathId:p.id};db.employees.push(e);db.activeId=e.id;persist()}closeEmployeeModal();renderAll();showToast(editingId?'Employee updated':'Employee added')}
 function openPathModal(){const e=active();if(!e)return;const p=activePath(e);let start=iso(normalizeStart(iso(new Date())));if(p?.events?.length){const last=p.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).at(-1);if(last)start=iso(nextBusinessDay(last.date))}$('#pathStart').value=start;$('#pathTime').value=p?.defaultTime||'08:00';$('#pathNotes').value='';$$('input[name="newPath"]').forEach(r=>r.checked=r.value==='ongoing');$('#pathModal').classList.add('show')}
 function closePathModal(){$('#pathModal').classList.remove('show')}
 function savePath(){const e=active();if(!e)return;const type=$('input[name="newPath"]:checked').value,start=$('#pathStart').value,time=$('#pathTime').value||'08:00',notes=$('#pathNotes').value;if(!start){alert('Please choose a start date.');return}const p=makePath(type,start,time,notes);e.paths.push(p);e.activePathId=p.id;persist();closePathModal();renderAll();showToast(`${pathName(type)} added`)}
@@ -467,7 +488,104 @@ $('#confirmDeleteBtn').onclick=function(){
 };
 $('#confirmDeleteModal').onclick=function(ev){if(ev.target===$('#confirmDeleteModal'))closeDeleteConfirm()};
 
-load();renderAll();
+
+async function syncLearnWorldsRosterV23(){
+  const status=$('#rosterSyncV23');
+  if(status){
+    status.className='roster-sync-v23';
+    status.textContent='Connecting to your LearnWorlds team…';
+  }
+
+  try{
+    const response=await fetch('/api/manager-team',{cache:'no-store',credentials:'same-origin'});
+    const payload=await response.json();
+
+    if(!response.ok){
+      throw new Error(payload?.error||payload?.message||('Team sync failed ('+response.status+')'));
+    }
+
+    const team=Array.isArray(payload.employees)?payload.employees:[];
+    const managerName=[
+      payload?.manager?.firstName||'',
+      payload?.manager?.lastName||''
+    ].join(' ').trim() || payload?.manager?.email || '';
+
+    const existingById=new Map(db.employees.map(e=>[String(e.id),e]));
+    const incomingIds=new Set(team.map(x=>String(x.id)));
+
+    // Archive local/manual employees that are no longer part of the authenticated
+    // LearnWorlds team. This keeps prototype data recoverable while removing those
+    // people from the manager's active roster.
+    const removed=db.employees.filter(e=>!incomingIds.has(String(e.id)));
+    if(removed.length){
+      try{
+        const archive=JSON.parse(localStorage.getItem('sales-fix-training-manager-roster-archive-v1')||'{}');
+        removed.forEach(e=>{archive[String(e.id)]={employee:e,archivedAt:new Date().toISOString()}});
+        localStorage.setItem('sales-fix-training-manager-roster-archive-v1',JSON.stringify(archive));
+      }catch(err){
+        console.warn('Unable to archive old roster entries',err);
+      }
+    }
+
+    const synced=team.map(member=>{
+      const old=existingById.get(String(member.id));
+      if(old){
+        old.id=String(member.id);
+        old.learnWorldsId=String(member.id);
+        old.email=member.email||old.email||'';
+        old.name=member.fullName||[member.firstName,member.lastName].filter(Boolean).join(' ')||member.email||old.name;
+        old.manager=managerName;
+        old.learnWorldsManaged=true;
+        old.learnWorldsStatus=member.status||'active';
+        old.learnWorldsTags=Array.isArray(member.tags)?member.tags:[];
+        old.paths=Array.isArray(old.paths)?old.paths.map(ensurePathExtras):[];
+        if(old.activePathId && !old.paths.some(p=>p.id===old.activePathId)){
+          old.activePathId=old.paths.at(-1)?.id||null;
+        }
+        return old;
+      }
+
+      return {
+        id:String(member.id),
+        learnWorldsId:String(member.id),
+        email:member.email||'',
+        name:member.fullName||[member.firstName,member.lastName].filter(Boolean).join(' ')||member.email||'Employee',
+        manager:managerName,
+        notes:'',
+        paths:[],
+        activePathId:null,
+        learnWorldsManaged:true,
+        learnWorldsStatus:member.status||'active',
+        learnWorldsTags:Array.isArray(member.tags)?member.tags:[]
+      };
+    });
+
+    db.employees=synced;
+
+    if(!db.activeId || !db.employees.some(e=>String(e.id)===String(db.activeId))){
+      db.activeId=db.employees[0]?.id||null;
+    }
+
+    persist();
+    renderAll();
+
+    if(status){
+      status.className='roster-sync-v23 ok';
+      status.innerHTML='<strong>LearnWorlds connected</strong><br>'+
+        db.employees.length+' employee'+(db.employees.length===1?'':'s')+
+        ' loaded from '+esc(payload?.seatOffering?.title||'your team')+'.';
+    }
+  }catch(error){
+    console.error('LearnWorlds roster sync failed',error);
+    if(status){
+      status.className='roster-sync-v23 error';
+      status.innerHTML='<strong>Team sync unavailable</strong><br>'+esc(error.message)+
+        '. Showing locally saved data for now.';
+    }
+  }
+}
+
+load();renderAll();syncLearnWorldsRosterV23();
 </script>
 
 
