@@ -805,11 +805,18 @@ async function syncTrainingActivityServerV29(employee,{force=false}={}){
 
     trainingActivityLastCheckedV29=Date.now();
 
-    if(payload?.state){
+    if(payload?.state && payload?.changed===true){
+      const scrollX=window.scrollX;
+      const scrollY=window.scrollY;
+
       replaceEmployeeStateFromServerV29(employee.id,payload.state);
+      renderAll();
+
+      requestAnimationFrame(()=>{
+        window.scrollTo(scrollX,scrollY);
+      });
     }
 
-    renderAll();
     setTrainingActivityStatusV29('ok','Up to date');
 
     if(payload?.newlyCompleted>0 && typeof showToast==='function'){
