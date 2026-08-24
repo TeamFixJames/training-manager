@@ -194,6 +194,18 @@
 .roster-sync-v23.ok{background:rgba(32,143,82,.12);color:#b8e5ca}
 </style>
 
+
+<style id="training-activity-status-v28">
+#trainingActivityStatusV28{
+  display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  padding:5px 9px;border:1px solid #d8e1ea;border-radius:999px;
+  background:#fff;color:#50657a;font-size:11px;font-weight:700;line-height:1;
+}
+#trainingActivityStatusV28.checking{opacity:.75}
+#trainingActivityStatusV28.ok{color:#24633f}
+#trainingActivityStatusV28.error{color:#9a3f3f}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -204,7 +216,7 @@
     <div class="side-head"><span>Employees</span><button class="add-employee" id="addEmployeeBtn">+ Add</button></div>
     <div class="employee-list" id="employeeList"></div>
     <div id="rosterSyncV23" class="roster-sync-v23">Connecting to your LearnWorlds team…</div>
-    <div class="side-footer">LearnWorlds supplies the roster. Training Manager data is stored in Postgres.</div>
+    <div class="side-footer">Your team roster and training activity are securely synced.</div>
   </aside>
   <section class="main">
     <div class="topbar">
@@ -407,7 +419,7 @@ async function flushPostgresV24(){
     const status=$('#rosterSyncV23');
     if(status && !status.classList.contains('error')){
       status.className='roster-sync-v23 ok';
-      status.innerHTML='<strong>Connected</strong><br>LearnWorlds roster · Postgres training data';
+      status.innerHTML='<strong>Connected</strong><br>Team roster · Training data connected';
     }
   }catch(error){
     console.error('Postgres save failed',error);
@@ -582,7 +594,7 @@ async function syncLearnWorldsRosterV23(){
   const status=$('#rosterSyncV23');
   if(status){
     status.className='roster-sync-v23';
-    status.textContent='Connecting to LearnWorlds and Postgres…';
+    status.textContent='Loading team and training activity…';
   }
 
   try{
@@ -670,8 +682,7 @@ async function syncLearnWorldsRosterV23(){
       status.className='roster-sync-v23 ok';
       status.innerHTML='<strong>Connected</strong><br>'+
         db.employees.length+' employee'+(db.employees.length===1?'':'s')+
-        ' from '+esc(teamPayload?.seatOffering?.title||'LearnWorlds')+
-        ' · Postgres persistence active';
+        ' team member'+(db.employees.length===1?'':'s')+' loaded · Training data connected';
     }
   }catch(error){
     console.error('Server-backed dashboard load failed',error);
@@ -806,6 +817,20 @@ function applyLearnWorldsCompletionV25(event, activity){
   }
 }
 
+
+function setTrainingActivityStatusV28(mode='ok',label='Up to date'){
+  let el=document.getElementById('trainingActivityStatusV28');
+  if(!el){
+    const host=document.getElementById('rosterSyncV23');
+    if(!host)return;
+    el=document.createElement('div');
+    el.id='trainingActivityStatusV28';
+    host.insertAdjacentElement('afterend',el);
+  }
+  el.className=mode;
+  el.textContent='Training Activity · '+label;
+}
+
 async function syncEmployeeLearnWorldsProgressV25(employee, {force=false}={}){
   if(!employee?.id || !employee?.learnWorldsManaged) return {changed:false, matched:0};
 
@@ -826,6 +851,7 @@ async function syncEmployeeLearnWorldsProgressV25(employee, {force=false}={}){
   }
 
   lwProgressSyncInFlightV25.add(employeeId);
+  setTrainingActivityStatusV28('checking','Checking…');
 
   try{
     const response=await fetch(
@@ -839,6 +865,7 @@ async function syncEmployeeLearnWorldsProgressV25(employee, {force=false}={}){
     }
 
     lwProgressLastCheckedV25.set(employeeId,Date.now());
+    setTrainingActivityStatusV28('ok','Up to date');
 
     const activities=Array.isArray(payload?.activities)?payload.activities:[];
     const byUnitId=new Map(
@@ -910,13 +937,14 @@ async function syncEmployeeLearnWorldsProgressV25(employee, {force=false}={}){
       persist();
       renderAll();
       if(typeof showToast==='function'){
-        showToast('LearnWorlds completions synced');
+        showToast('Training activity updated');
       }
     }
 
     return {changed,matched,summary:payload?.summary||null};
   }catch(error){
-    console.error('LearnWorlds completion sync failed',error);
+    console.error('Training activity sync failed',error);
+    setTrainingActivityStatusV28('error','Retrying automatically');
     return {changed:false,matched:0,error:error.message};
   }finally{
     lwProgressSyncInFlightV25.delete(employeeId);
