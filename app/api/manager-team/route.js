@@ -66,24 +66,23 @@ export async function GET() {
       ? managerSeatsResponse.data.seats
       : [];
 
-    const activeManagerSeats = managerSeats.filter(
-      (seat) => seat?.active === true
-    );
+    if (managerSeats.length === 0) {
+  return NextResponse.json(
+    {
+      error: 'No seat offering was found for this manager',
+      manager: {
+        id: manager.id,
+        email: manager.email
+      }
+    },
+    { status: 404 }
+  );
+}
 
-    if (activeManagerSeats.length === 0) {
-      return NextResponse.json(
-        {
-          error: 'No active seat offering was found for this manager',
-          manager: {
-            id: manager.id,
-            email: manager.email
-          }
-        },
-        { status: 404 }
-      );
-    }
-
-    const managedSeat = activeManagerSeats[0];
+// Match the behavior of the existing Sales Fix manager app.
+// A seat manager does not need their own seat membership to be marked
+// active in order to manage the offering.
+const managedSeat = managerSeats[0];
 
     const seatUsersResponse = await lwGet(
       `/seats/${encodeURIComponent(managedSeat.id)}/users`
@@ -163,9 +162,10 @@ export async function GET() {
       },
       employeeCount: employees.length,
       employees,
-      additionalActiveSeatOfferings: Math.max(
-        0,
-        activeManagerSeats.length - 1
+      additionalSeatOfferings: Math.max(
+  0,
+  managerSeats.length - 1
+)
       )
     });
   } catch (error) {
