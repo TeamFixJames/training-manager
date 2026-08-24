@@ -685,6 +685,175 @@ async function syncLearnWorldsRosterV23(){
   }
 }
 
+
+let lwProgressSyncInFlightV25 = new Set();
+let lwProgressLastCheckedV25 = new Map();
+
+function allEmployeeEventsV25(employee){
+  const out=[];
+  for(const path of (employee?.paths||[])){
+    for(const event of (path?.events||[])){
+      out.push({path,event});
+    }
+  }
+  return out;
+}
+
+function isSchoolVideoEventV25(event){
+  return !!(
+    event &&
+    event.lwUnitId &&
+    (
+      event.type === 'video' ||
+      event.kind === 'video' ||
+      event.activityType === 'video' ||
+      event.sourceUrl ||
+      event.url
+    )
+  );
+}
+
+function eventAlreadyCompleteV25(event){
+  return event?.completed === true ||
+         event?.isCompleted === true ||
+         event?.status === 'completed';
+}
+
+function applyLearnWorldsCompletionV25(event, activity){
+  // Preserve the dashboard's existing completion fields while adding
+  // LearnWorlds metadata for reporting/debugging.
+  event.completed = true;
+  if ('isCompleted' in event) event.isCompleted = true;
+  if ('status' in event) event.status = 'completed';
+
+  event.lwCompleted = true;
+  event.lwProgress = Number(activity?.progress || 100);
+  event.lwTimeSpentSeconds = Number(activity?.timeSpentSeconds || 0);
+  event.lwDurationSeconds =
+    typeof activity?.durationSeconds === 'number'
+      ? activity.durationSeconds
+      : (event.lwDurationSeconds ?? null);
+  event.lwCourseId = event.lwCourseId || activity?.courseId || '';
+  event.lwUnitId = event.lwUnitId || activity?.unitId || '';
+  event.lwLastSyncedAt = new Date().toISOString();
+
+  // Do not invent a historical completion date because the progress
+  // endpoint currently does not provide a per-unit completed_at value.
+  if (!event.completedAt && !event.completedDate && !event.dateCompleted) {
+    event.lwCompletionDetectedAt = event.lwCompletionDetectedAt || new Date().toISOString();
+  }
+}
+
+async function syncEmployeeLearnWorldsProgressV25(employee, {force=false}={}){
+  if(!employee?.id || !employee?.learnWorldsManaged) return {changed:false, matched:0};
+
+  const employeeId=String(employee.id);
+  const now=Date.now();
+  const last=lwProgressLastCheckedV25.get(employeeId)||0;
+
+  // Avoid hammering LearnWorlds while managers click around quickly.
+  if(!force && now-last < 60000) return {changed:false, matched:0, skipped:true};
+  if(lwProgressSyncInFlightV25.has(employeeId)) return {changed:false, matched:0, skipped:true};
+
+  lwProgressSyncInFlightV25.add(employeeId);
+
+  try{
+    const response=await fetch(
+      '/api/training-progress?userId='+encodeURIComponent(employeeId),
+      {cache:'no-store',credentials:'same-origin'}
+    );
+    const payload=await response.json();
+
+    if(!response.ok || payload?.success===false){
+      throw new Error(payload?.error||payload?.message||('LearnWorlds sync failed ('+response.status+')'));
+    }
+
+    lwProgressLastCheckedV25.set(employeeId,Date.now());
+
+    const activities=Array.isArray(payload?.activities)?payload.activities:[];
+    const byUnitId=new Map(
+      activities
+        .filter(a=>a?.unitId)
+        .map(a=>[String(a.unitId),a])
+    );
+
+    let changed=false;
+    let matched=0;
+
+    for(const {event} of allEmployeeEventsV25(employee)){
+      if(!isSchoolVideoEventV25(event)) continue;
+
+      const activity=byUnitId.get(String(event.lwUnitId));
+      if(!activity) continue;
+
+      matched++;
+
+      // LearnWorlds may contain partial progress. Only a completed activity
+      // is allowed to turn a Training Manager item into completed.
+      if(activity.completed === true && !eventAlreadyCompleteV25(event)){
+        applyLearnWorldsCompletionV25(event,activity);
+        changed=true;
+      } else if(activity.completed === true && eventAlreadyCompleteV25(event)){
+        // Keep useful LW metadata fresh without forcing a DB write every load.
+        const nextTime=Number(activity?.timeSpentSeconds||0);
+        const nextProgress=Number(activity?.progress||100);
+        if(
+          event.lwCompleted !== true ||
+          Number(event.lwTimeSpentSeconds||0)!==nextTime ||
+          Number(event.lwProgress||0)!==nextProgress
+        ){
+          event.lwCompleted=true;
+          event.lwTimeSpentSeconds=nextTime;
+          event.lwProgress=nextProgress;
+          event.lwDurationSeconds =
+            typeof activity?.durationSeconds === 'number'
+              ? activity.durationSeconds
+              : (event.lwDurationSeconds ?? null);
+          event.lwLastSyncedAt=new Date().toISOString();
+          changed=true;
+        }
+      }
+    }
+
+    employee.lwProgressLastCheckedAt=new Date().toISOString();
+    employee.lwProgressSummary=payload?.summary||null;
+
+    if(changed){
+      persist();
+      renderAll();
+      if(typeof showToast==='function'){
+        showToast('LearnWorlds completions synced');
+      }
+    }
+
+    return {changed,matched,summary:payload?.summary||null};
+  }catch(error){
+    console.error('LearnWorlds completion sync failed',error);
+    return {changed:false,matched:0,error:error.message};
+  }finally{
+    lwProgressSyncInFlightV25.delete(employeeId);
+  }
+}
+
+function syncActiveEmployeeLearnWorldsV25(options){
+  const employee=currentEmployee();
+  if(employee) return syncEmployeeLearnWorldsProgressV25(employee,options);
+}
+
+// Watch for employee changes and sync the newly selected employee.
+let lastActiveEmployeeForLwSyncV25=null;
+setInterval(()=>{
+  const employee=currentEmployee();
+  const id=employee?String(employee.id):null;
+  if(id && id!==lastActiveEmployeeForLwSyncV25){
+    lastActiveEmployeeForLwSyncV25=id;
+    syncEmployeeLearnWorldsProgressV25(employee);
+  }
+},500);
+
+// Also sync the active employee shortly after initial roster/database load.
+setTimeout(()=>syncActiveEmployeeLearnWorldsV25(),1800);
+
 load();renderAll();syncLearnWorldsRosterV23();
 </script>
 
