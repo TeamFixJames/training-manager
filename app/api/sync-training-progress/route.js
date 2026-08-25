@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth0 } from '../../../lib/auth0';
 import { db } from '../../../lib/db';
 
+const PASSING_SCORE = 80;
+
 const headers = {
   Authorization: `Bearer ${process.env.LW_TOKEN}`,
   'Lw-Client': process.env.LW_CLIENT_ID,
@@ -25,7 +27,9 @@ async function fetchAllProgress(userId) {
 
   do {
     const response = await fetch(
-      `${process.env.LW_API_URL}/users/${encodeURIComponent(userId)}/progress?page=${page}`,
+      `${process.env.LW_API_URL}/users/${encodeURIComponent(
+        userId
+      )}/progress?page=${page}`,
       {
         headers,
         cache: 'no-store'
@@ -37,11 +41,12 @@ async function fetchAllProgress(userId) {
     if (!response.ok) {
       const error = new Error(
         payload?.error ||
-        `Training activity request failed (${response.status})`
+          `Training activity request failed (${response.status})`
       );
 
       error.status = response.status;
       error.details = payload;
+
       throw error;
     }
 
@@ -49,7 +54,10 @@ async function fetchAllProgress(userId) {
       ...(Array.isArray(payload?.data) ? payload.data : [])
     );
 
-    totalPages = Number(payload?.meta?.totalPages || 1);
+    totalPages = Number(
+      payload?.meta?.totalPages || 1
+    );
+
     page += 1;
   } while (page <= totalPages);
 
@@ -60,21 +68,31 @@ function flattenActivities(courses) {
   const activities = [];
 
   for (const course of courses) {
-    for (const section of course?.progress_per_section_unit || []) {
+    for (
+      const section of
+      course?.progress_per_section_unit || []
+    ) {
       for (const unit of section?.units || []) {
         activities.push({
           courseId: course.course_id || '',
+          sectionId: section.section_id || '',
+          sectionName: section.section_name || '',
           unitId: unit.unit_id || '',
           title: unit.unit_name || '',
           type: unit.unit_type || '',
-          completed: unit.unit_status === 'completed',
-          progress: Number(unit.unit_progress_rate || 0),
-
+          completed:
+            unit.unit_status === 'completed',
+          progress: Number(
+            unit.unit_progress_rate || 0
+          ),
+          score:
+            typeof unit.score === 'number'
+              ? unit.score
+              : null,
           durationSeconds:
             typeof unit.unit_duration === 'number'
               ? unit.unit_duration
               : null,
-
           timeSpentSeconds:
             typeof unit.time_on_unit === 'number'
               ? unit.time_on_unit
@@ -129,8 +147,12 @@ const titleAliases = new Map([
     )
   ],
   [
-    normalizeTitle('Technician Quote & Close Ratio'),
-    normalizeTitle('Technician Quote and Close Ratio')
+    normalizeTitle(
+      'Technician Quote & Close Ratio'
+    ),
+    normalizeTitle(
+      'Technician Quote and Close Ratio'
+    )
   ],
   [
     normalizeTitle(
@@ -141,16 +163,28 @@ const titleAliases = new Map([
     )
   ],
   [
-    normalizeTitle('Why Scripting is Important'),
-    normalizeTitle('Why Scripting Is Important')
+    normalizeTitle(
+      'Why Scripting is Important'
+    ),
+    normalizeTitle(
+      'Why Scripting Is Important'
+    )
   ],
   [
-    normalizeTitle('Delivering Good News vs Bad News'),
-    normalizeTitle('Delivering Good News vs. Bad News')
+    normalizeTitle(
+      'Delivering Good News vs Bad News'
+    ),
+    normalizeTitle(
+      'Delivering Good News vs. Bad News'
+    )
   ],
   [
-    normalizeTitle('Overcoming No’s and Objections'),
-    normalizeTitle("Overcoming No's and Objections")
+    normalizeTitle(
+      'Overcoming No’s and Objections'
+    ),
+    normalizeTitle(
+      "Overcoming No's and Objections"
+    )
   ],
   [
     normalizeTitle(
@@ -185,7 +219,9 @@ const titleAliases = new Map([
 function normalizedCertificationTitle(title) {
   const normalized = normalizeTitle(title);
 
-  return titleAliases.get(normalized) || normalized;
+  return (
+    titleAliases.get(normalized) || normalized
+  );
 }
 
 function certificationCourse(path, event) {
@@ -194,14 +230,26 @@ function certificationCourse(path, event) {
   }
 
   const section = String(event?.section || '');
-  const match = section.match(/SECTION\s+(\d+)/i);
-  const sectionNumber = Number(match?.[1] || 0);
 
-  if (sectionNumber >= 1 && sectionNumber <= 5) {
+  const match = section.match(
+    /SECTION\s+(\d+)/i
+  );
+
+  const sectionNumber = Number(
+    match?.[1] || 0
+  );
+
+  if (
+    sectionNumber >= 1 &&
+    sectionNumber <= 5
+  ) {
     return 'foundations';
   }
 
-  if (sectionNumber >= 6 && sectionNumber <= 10) {
+  if (
+    sectionNumber >= 6 &&
+    sectionNumber <= 10
+  ) {
     return 'advanced';
   }
 
@@ -213,26 +261,236 @@ function findCertificationActivity(
   event,
   activities
 ) {
-  const courseId = certificationCourse(path, event);
+  const courseId =
+    certificationCourse(path, event);
 
   if (!courseId) {
     return null;
   }
 
   const wantedTitle =
-    normalizedCertificationTitle(event?.title || '');
+    normalizedCertificationTitle(
+      event?.title || ''
+    );
 
   const matches = activities.filter(
     (activity) =>
       activity.type === 'video' &&
       activity.courseId === courseId &&
-      normalizedCertificationTitle(activity.title) ===
+      normalizedCertificationTitle(
+        activity.title
+      ) === wantedTitle
+  );
+
+  return matches.length === 1
+    ? matches[0]
+    : null;
+}
+
+/*
+ * These are the 10 required section exams.
+ *
+ * Sections 1-5 = Foundations
+ * Sections 6-10 = Advanced
+ *
+ * Every exam requires 80% to pass.
+ */
+const SECTION_EXAMS = [
+  {
+    section: 1,
+    courseId: 'foundations',
+    title:
+      'TEST - Next Level Leadership and Culture'
+  },
+  {
+    section: 2,
+    courseId: 'foundations',
+    title: 'TEST - Selling 101'
+  },
+  {
+    section: 3,
+    courseId: 'foundations',
+    title:
+      'TEST - Making a Great Impression'
+  },
+  {
+    section: 4,
+    courseId: 'foundations',
+    title:
+      'TEST - Know Confidence and No Fear'
+  },
+  {
+    section: 5,
+    courseId: 'foundations',
+    title:
+      'TEST - Untapped Resources'
+  },
+  {
+    section: 6,
+    courseId: 'advanced',
+    title:
+      'TEST - Tracking Your Numbers'
+  },
+  {
+    section: 7,
+    courseId: 'advanced',
+    title: 'TEST - Scripting'
+  },
+  {
+    section: 8,
+    courseId: 'advanced',
+    title:
+      'TEST - Wowing Your Customer'
+  },
+  {
+    section: 9,
+    courseId: 'advanced',
+    title:
+      'TEST - High Level Sales: Part 1'
+  },
+  {
+    section: 10,
+    courseId: 'advanced',
+    title:
+      'TEST - High Level Sales: Part 2'
+  }
+];
+
+function findSectionExam(
+  exam,
+  activities
+) {
+  const wantedTitle =
+    normalizeTitle(exam.title);
+
+  const matches = activities.filter(
+    (activity) =>
+      activity.courseId === exam.courseId &&
+      activity.type === 'assessmentV2' &&
+      normalizeTitle(activity.title) ===
         wantedTitle
   );
 
   return matches.length === 1
     ? matches[0]
     : null;
+}
+
+function buildSectionExamState(activities) {
+  return SECTION_EXAMS.map((exam) => {
+    const activity =
+      findSectionExam(exam, activities);
+
+    const score =
+      typeof activity?.score === 'number'
+        ? activity.score
+        : null;
+
+    const completed =
+      activity?.completed === true;
+
+    /*
+     * Passing requires BOTH:
+     * - completed assessment
+     * - score of at least 80
+     */
+    const passed =
+      completed &&
+      score !== null &&
+      score >= PASSING_SCORE;
+
+    return {
+      section: exam.section,
+      courseId: exam.courseId,
+      unitId: activity?.unitId || '',
+      title: exam.title,
+      completed,
+      score,
+      requiredScore: PASSING_SCORE,
+      passed,
+      lastSyncedAt:
+        new Date().toISOString()
+    };
+  });
+}
+
+function calculateLevel1Readiness(
+  state,
+  sectionExams
+) {
+  const certificationPaths =
+    (state?.paths || []).filter(
+      (path) => path?.type === 'cert'
+    );
+
+  const certificationVideos =
+    certificationPaths.flatMap(
+      (path) =>
+        (path?.events || []).filter(
+          (event) =>
+            event?.kind === 'video'
+        )
+    );
+
+  const requiredVideoCount =
+    certificationVideos.length;
+
+  const completedVideoCount =
+    certificationVideos.filter(
+      (event) => event.completed === true
+    ).length;
+
+  const requiredSectionExamCount =
+    sectionExams.length;
+
+  const passedSectionExamCount =
+    sectionExams.filter(
+      (exam) => exam.passed === true
+    ).length;
+
+  const allVideosComplete =
+    requiredVideoCount > 0 &&
+    completedVideoCount ===
+      requiredVideoCount;
+
+  const allSectionExamsPassed =
+    requiredSectionExamCount === 10 &&
+    passedSectionExamCount ===
+      requiredSectionExamCount;
+
+  return {
+    ready:
+      allVideosComplete &&
+      allSectionExamsPassed,
+
+    allVideosComplete,
+    allSectionExamsPassed,
+
+    requiredVideoCount,
+    completedVideoCount,
+
+    requiredSectionExamCount,
+    passedSectionExamCount,
+
+    remainingVideoCount:
+      Math.max(
+        0,
+        requiredVideoCount -
+          completedVideoCount
+      ),
+
+    remainingSectionExamCount:
+      Math.max(
+        0,
+        requiredSectionExamCount -
+          passedSectionExamCount
+      ),
+
+    passingScore: PASSING_SCORE,
+
+    lastCalculatedAt:
+      new Date().toISOString()
+  };
 }
 
 export async function POST(request) {
@@ -255,23 +513,32 @@ export async function POST(request) {
 
     if (!employeeId) {
       return NextResponse.json(
-        { error: 'employeeId is required' },
+        {
+          error:
+            'employeeId is required'
+        },
         { status: 400 }
       );
     }
 
-    const stateResult = await db.query(
-      `
-        SELECT state
-        FROM training_manager_state
-        WHERE manager_email = $1
-          AND employee_lw_id = $2
-        LIMIT 1
-      `,
-      [managerEmail, employeeId]
-    );
+    const stateResult =
+      await db.query(
+        `
+          SELECT state
+          FROM training_manager_state
+          WHERE manager_email = $1
+            AND employee_lw_id = $2
+          LIMIT 1
+        `,
+        [
+          managerEmail,
+          employeeId
+        ]
+      );
 
-    if (stateResult.rows.length === 0) {
+    if (
+      stateResult.rows.length === 0
+    ) {
       return NextResponse.json(
         {
           error:
@@ -281,7 +548,8 @@ export async function POST(request) {
       );
     }
 
-    const state = stateResult.rows[0].state || {};
+    const state =
+      stateResult.rows[0].state || {};
 
     const courses =
       await fetchAllProgress(employeeId);
@@ -291,11 +559,16 @@ export async function POST(request) {
 
     const byUnitId = new Map(
       activities
-        .filter((activity) => activity.unitId)
-        .map((activity) => [
-          String(activity.unitId),
-          activity
-        ])
+        .filter(
+          (activity) =>
+            activity.unitId
+        )
+        .map(
+          (activity) => [
+            String(activity.unitId),
+            activity
+          ]
+        )
     );
 
     let changed = false;
@@ -303,28 +576,36 @@ export async function POST(request) {
     let newlyMapped = 0;
     let newlyCompleted = 0;
 
-    for (const path of state?.paths || []) {
-      for (const event of path?.events || []) {
-        if (event?.kind !== 'video') {
+    /*
+     * ----------------------------
+     * VIDEO COMPLETION SYNC
+     * ----------------------------
+     */
+    for (
+      const path of state?.paths || []
+    ) {
+      for (
+        const event of
+        path?.events || []
+      ) {
+        if (
+          event?.kind !== 'video'
+        ) {
           continue;
         }
 
         let activity = null;
 
-        /*
-         * Normal case:
-         * video already has its permanent activity ID.
-         */
         if (event.lwUnitId) {
           activity =
-            byUnitId.get(String(event.lwUnitId)) ||
-            null;
+            byUnitId.get(
+              String(event.lwUnitId)
+            ) || null;
         }
 
         /*
-         * New Certification paths do not initially
-         * contain IDs. Resolve them once from their
-         * known course + video title.
+         * Newly-created Certification
+         * paths may not have IDs yet.
          */
         if (
           !activity &&
@@ -339,8 +620,10 @@ export async function POST(request) {
 
           if (
             activity &&
-            (!event.lwUnitId ||
-              !event.lwCourseId)
+            (
+              !event.lwUnitId ||
+              !event.lwCourseId
+            )
           ) {
             event.lwCourseId =
               activity.courseId;
@@ -364,8 +647,8 @@ export async function POST(request) {
           event.completed !== true
         ) {
           event.completed = true;
-
           event.lwCompleted = true;
+
           event.lwProgress =
             activity.progress;
 
@@ -378,7 +661,9 @@ export async function POST(request) {
           event.lwLastSyncedAt =
             new Date().toISOString();
 
-          if (!event.lwCompletionDetectedAt) {
+          if (
+            !event.lwCompletionDetectedAt
+          ) {
             event.lwCompletionDetectedAt =
               new Date().toISOString();
           }
@@ -389,6 +674,64 @@ export async function POST(request) {
       }
     }
 
+    /*
+     * ----------------------------
+     * SECTION EXAM SYNC
+     * ----------------------------
+     */
+    const sectionExams =
+      buildSectionExamState(
+        activities
+      );
+
+    const previousExamState =
+      JSON.stringify(
+        state?.certification
+          ?.sectionExams || []
+      );
+
+    const newExamState =
+      JSON.stringify(sectionExams);
+
+    if (
+      previousExamState !==
+      newExamState
+    ) {
+      changed = true;
+    }
+
+    /*
+     * ----------------------------
+     * LEVEL 1 READINESS
+     * ----------------------------
+     */
+    const level1 =
+      calculateLevel1Readiness(
+        state,
+        sectionExams
+      );
+
+    const previousLevel1 =
+      JSON.stringify(
+        state?.certification
+          ?.level1 || {}
+      );
+
+    const newLevel1 =
+      JSON.stringify(level1);
+
+    if (
+      previousLevel1 !== newLevel1
+    ) {
+      changed = true;
+    }
+
+    state.certification = {
+      ...(state.certification || {}),
+      sectionExams,
+      level1
+    };
+
     const checkedAt =
       new Date().toISOString();
 
@@ -396,47 +739,64 @@ export async function POST(request) {
       checkedAt;
 
     /*
-     * Save if we either:
-     * - mapped Certification IDs, or
-     * - found new completions.
+     * ----------------------------
+     * SAVE UPDATED STATE
+     * ----------------------------
      */
     if (changed) {
-      const updateResult = await db.query(
-        `
-          UPDATE training_manager_state
-          SET
-            state = $1::jsonb,
-            updated_at = NOW()
-          WHERE manager_email = $2
-            AND employee_lw_id = $3
-          RETURNING state, updated_at
-        `,
-        [
-          JSON.stringify(state),
-          managerEmail,
-          employeeId
-        ]
-      );
+      const updateResult =
+        await db.query(
+          `
+            UPDATE training_manager_state
+            SET
+              state = $1::jsonb,
+              updated_at = NOW()
+            WHERE manager_email = $2
+              AND employee_lw_id = $3
+            RETURNING
+              state,
+              updated_at
+          `,
+          [
+            JSON.stringify(state),
+            managerEmail,
+            employeeId
+          ]
+        );
 
       return NextResponse.json({
         success: true,
         changed: true,
+
         matchedVideos,
         newlyMapped,
         newlyCompleted,
+
+        sectionExams,
+        level1,
+
         checkedAt,
-        state: updateResult.rows[0].state,
+
+        state:
+          updateResult.rows[0].state,
+
         updatedAt:
-          updateResult.rows[0].updated_at
+          updateResult.rows[0]
+            .updated_at
       });
     }
 
     return NextResponse.json({
       success: true,
       changed: false,
+
       matchedVideos,
       newlyMapped: 0,
       newlyCompleted: 0,
+
+      sectionExams,
+      level1,
+
       checkedAt,
       state
     });
@@ -449,13 +809,19 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
+
         error:
           'Unable to sync training activity',
-        message: error.message,
-        details: error.details || null
+
+        message:
+          error.message,
+
+        details:
+          error.details || null
       },
       {
-        status: error.status || 500
+        status:
+          error.status || 500
       }
     );
   }
