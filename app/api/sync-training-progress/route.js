@@ -425,21 +425,67 @@ function calculateLevel1Readiness(
       (path) => path?.type === 'cert'
     );
 
+  /*
+   * An employee may have more than one Path to
+   * Certification in their saved history.
+   *
+   * Level 1 readiness should still count each
+   * required Certification video only once.
+   */
+  const uniqueVideos = new Map();
+
+  for (const path of certificationPaths) {
+    for (const event of path?.events || []) {
+      if (event?.kind !== 'video') {
+        continue;
+      }
+
+      /*
+       * Once synchronized, lwUnitId is the best
+       * permanent identifier.
+       *
+       * Fall back to section + normalized title
+       * for a newly-created path whose IDs have
+       * not been attached yet.
+       */
+      const key =
+        event.lwUnitId
+          ? `unit:${event.lwUnitId}`
+          : `title:${String(
+              event.section || ''
+            )}:${normalizedCertificationTitle(
+              event.title || ''
+            )}`;
+
+      const existing =
+        uniqueVideos.get(key);
+
+      /*
+       * If duplicate Certification paths exist,
+       * preserve completion if ANY copy of the
+       * same required video is complete.
+       */
+      if (!existing) {
+        uniqueVideos.set(key, event);
+      } else if (
+        event.completed === true &&
+        existing.completed !== true
+      ) {
+        uniqueVideos.set(key, event);
+      }
+    }
+  }
+
   const certificationVideos =
-    certificationPaths.flatMap(
-      (path) =>
-        (path?.events || []).filter(
-          (event) =>
-            event?.kind === 'video'
-        )
-    );
+    Array.from(uniqueVideos.values());
 
   const requiredVideoCount =
     certificationVideos.length;
 
   const completedVideoCount =
     certificationVideos.filter(
-      (event) => event.completed === true
+      (event) =>
+        event.completed === true
     ).length;
 
   const requiredSectionExamCount =
@@ -447,7 +493,8 @@ function calculateLevel1Readiness(
 
   const passedSectionExamCount =
     sectionExams.filter(
-      (exam) => exam.passed === true
+      (exam) =>
+        exam.passed === true
     ).length;
 
   const allVideosComplete =
