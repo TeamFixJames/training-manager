@@ -372,6 +372,13 @@
 @media(max-width:700px){.report-controls-v36{grid-template-columns:1fr}.report-kpis-v36,.report-action-grid-v36{grid-template-columns:1fr}.reports-v36-head{display:block}}
 </style>
 
+
+<style id="reports-engagement-v37-css">
+.report-engagement-v37{display:inline-block;padding:4px 7px;border-radius:999px;font-size:8px;font-weight:900;white-space:nowrap;background:#eef2f6;color:#5f6e7c}
+.report-engagement-v37.good{background:#eaf7ee;color:#247343}.report-engagement-v37.attention{background:#fff5e6;color:#9a5c14}.report-engagement-v37.action{background:#fdefed;color:#a33932}
+.report-engagement-detail-v37{display:block;font-size:8px;color:#8391a0;margin-top:4px;line-height:1.4}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1085,7 +1092,9 @@ async function syncLearnWorldsRosterV23(){
         coachingNotes:[],
         learnWorldsManaged:true,
         learnWorldsStatus:member.status||'active',
-        learnWorldsTags:Array.isArray(member.tags)?member.tags:[]
+        learnWorldsTags:Array.isArray(member.tags)?member.tags:[],
+        learnWorldsLastLogin:member.lastLogin||null,
+        learnWorldsCreatedAt:member.createdAt||null
       };
 
       // LearnWorlds remains authoritative for identity/roster fields.
@@ -1097,6 +1106,8 @@ async function syncLearnWorldsRosterV23(){
       e.learnWorldsManaged=true;
       e.learnWorldsStatus=member.status||'active';
       e.learnWorldsTags=Array.isArray(member.tags)?member.tags:[];
+      e.learnWorldsLastLogin=member.lastLogin||null;
+      e.learnWorldsCreatedAt=member.createdAt||null;
       e.paths=Array.isArray(e.paths)?e.paths.map(ensurePathExtras):[];
       e.engagement=e.engagement||{fix:[],trainer:[]};
       e.coachingNotes=Array.isArray(e.coachingNotes)?e.coachingNotes:[];
@@ -2447,9 +2458,56 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     }catch(err){}
     return latest;
   }
-  function recommendedActionV36(e,status){
+  function daysSinceV37(value){
+    if(!value)return null;
+    const d=new Date(value);
+    if(Number.isNaN(d.getTime()))return null;
+    return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+  }
+  function prettyDateV37(value){
+    if(!value)return 'Never';
+    const d=new Date(value);
+    if(Number.isNaN(d.getTime()))return 'Unknown';
+    return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric'}).format(d);
+  }
+  function engagementStatusV37(e){
+    const lastLogin=e.learnWorldsLastLogin||null;
+    const lastTraining=lastActivityV36(e)||null;
+    const created=e.learnWorldsCreatedAt||null;
+    const loginDays=daysSinceV37(lastLogin);
+    const trainingDays=daysSinceV37(lastTraining);
+    const accountDays=daysSinceV37(created);
+
+    if(loginDays===null){
+      if(accountDays!==null && accountDays<=7){
+        return{level:'attention',label:'New · Not Logged In',reason:'Account created recently, but no login has been recorded yet.',lastLogin,lastTraining,loginDays,trainingDays};
+      }
+      return{level:'action',label:'Never Logged In',reason:'No login has been recorded for this employee.',lastLogin,lastTraining,loginDays,trainingDays};
+    }
+    if(loginDays>=14){
+      return{level:'action',label:'Inactive 14+ Days',reason:`Last login was ${loginDays} days ago.`,lastLogin,lastTraining,loginDays,trainingDays};
+    }
+    if(loginDays>=7){
+      return{level:'attention',label:'Inactive 7+ Days',reason:`Last login was ${loginDays} days ago.`,lastLogin,lastTraining,loginDays,trainingDays};
+    }
+    if(trainingDays===null){
+      return{level:'attention',label:'Logging In · No Training Yet',reason:'Recent platform login, but no completed training activity is recorded.',lastLogin,lastTraining,loginDays,trainingDays};
+    }
+    if(trainingDays>=14){
+      return{level:'action',label:'Logging In · Not Training',reason:`Logged in recently, but last completed training was ${trainingDays} days ago.`,lastLogin,lastTraining,loginDays,trainingDays};
+    }
+    if(trainingDays>=7){
+      return{level:'attention',label:'Training Gap 7+ Days',reason:`Last completed training was ${trainingDays} days ago.`,lastLogin,lastTraining,loginDays,trainingDays};
+    }
+    return{level:'good',label:'Recently Engaged',reason:'Recent login and completed training activity.',lastLogin,lastTraining,loginDays,trainingDays};
+  }
+  function recommendedActionV36(e,status,engagement){
     const p=currentPathV36(e);
     if(!p)return 'Assign a training path';
+    if(engagement?.level==='action' && engagement?.label==='Never Logged In')return 'Contact employee and confirm platform access';
+    if(engagement?.level==='action' && engagement?.label==='Inactive 14+ Days')return 'Follow up on platform engagement now';
+    if(engagement?.label==='Logging In · Not Training')return 'Coach employee on completing assigned training';
+    if(engagement?.level==='attention')return 'Review recent engagement with employee';
     if(status.label==='Certified')return 'Maintain ongoing development';
     if(status.label.includes('Attempted'))return 'Coach and prepare for another certification attempt';
     if(status.label.includes('Level 1 Ready'))return 'Have employee complete Level 1 Certification';
@@ -2543,14 +2601,32 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
   }
   function renderActionV36(){
     const filter=document.getElementById('reportStatusV36')?.value||'all';
-    let rows=employeesV36().map(e=>({e,status:typeof employeeAttention==='function'?employeeAttention(e):{level:'good',label:'On Track',reason:''},p:currentPathV36(e),last:lastActivityV36(e)}));
-    if(filter!=='all')rows=rows.filter(x=>x.status.level===filter);
-    const rank={action:0,attention:1,good:2};rows.sort((a,b)=>(rank[a.status.level]??9)-(rank[b.status.level]??9)||String(a.e.name).localeCompare(String(b.e.name)));
-    const action=rows.filter(x=>x.status.level==='action').length,attention=rows.filter(x=>x.status.level==='attention').length,good=rows.filter(x=>x.status.level==='good').length;
+    const severity={action:0,attention:1,good:2};
+    let rows=employeesV36().map(e=>{
+      const status=typeof employeeAttention==='function'?employeeAttention(e):{level:'good',label:'On Track',reason:''};
+      const engagement=engagementStatusV37(e);
+      const combined=(severity[engagement.level]??2)<(severity[status.level]??2)?engagement.level:status.level;
+      return{e,status,engagement,combined,p:currentPathV36(e),last:lastActivityV36(e)};
+    });
+    if(filter!=='all')rows=rows.filter(x=>x.combined===filter);
+    rows.sort((a,b)=>(severity[a.combined]??9)-(severity[b.combined]??9)||String(a.e.name).localeCompare(String(b.e.name)));
+
+    const action=rows.filter(x=>x.combined==='action').length;
+    const attention=rows.filter(x=>x.combined==='attention').length;
+    const good=rows.filter(x=>x.combined==='good').length;
+    const inactive7=rows.filter(x=>x.engagement.loginDays!==null&&x.engagement.loginDays>=7).length;
+    const recentLoginNoTraining=rows.filter(x=>x.engagement.loginDays!==null&&x.engagement.loginDays<7&&(x.engagement.trainingDays===null||x.engagement.trainingDays>=7)).length;
+
     document.getElementById('reportOutputV36').innerHTML=`
-      <div class="report-action-grid-v36"><div class="report-action-card-v36"><b>${action}</b><span>Action Needed</span></div><div class="report-action-card-v36"><b>${attention}</b><span>Needs Attention</span></div><div class="report-action-card-v36"><b>${good}</b><span>On Track</span></div></div>
-      <div class="report-section-v36"><div class="report-section-head-v36"><b>Manager Follow-Up Queue</b><span>Highest priority first</span></div>
-      ${rows.length?`<div style="overflow:auto"><table class="report-table-v36"><thead><tr><th>Employee</th><th>Status</th><th>Current Path</th><th>Why</th><th>Last Activity</th><th>Recommended Next Step</th></tr></thead><tbody>${rows.map(x=>`<tr class="clickable" data-report-emp="${eV36(x.e.id)}"><td><b>${eV36(x.e.name)}</b></td><td><span class="report-status-v36 ${x.status.level}">${eV36(x.status.label)}</span></td><td>${x.p?eV36(typeof pathName==='function'?pathName(x.p.type):x.p.type):'No path'}</td><td>${eV36(x.status.reason)}</td><td>${x.last?eV36(x.last):'No activity recorded'}</td><td><b>${eV36(recommendedActionV36(x.e,x.status))}</b></td></tr>`).join('')}</tbody></table></div>`:'<div class="report-empty-v36">No employees match this status filter.</div>'}</div>`;
+      <div class="report-kpis-v36">
+        <div class="report-kpi-v36"><b>${action}</b><span>Action Needed</span></div>
+        <div class="report-kpi-v36"><b>${attention}</b><span>Needs Attention</span></div>
+        <div class="report-kpi-v36"><b>${good}</b><span>On Track</span></div>
+        <div class="report-kpi-v36"><b>${inactive7}</b><span>No Login 7+ Days</span></div>
+        <div class="report-kpi-v36"><b>${recentLoginNoTraining}</b><span>Login Without Recent Training</span></div>
+      </div>
+      <div class="report-section-v36"><div class="report-section-head-v36"><b>Manager Follow-Up Queue</b><span>Training status + platform engagement · highest priority first</span></div>
+      ${rows.length?`<div style="overflow:auto"><table class="report-table-v36"><thead><tr><th>Employee</th><th>Training Status</th><th>Engagement</th><th>Last Login</th><th>Last Training</th><th>Why</th><th>Recommended Next Step</th></tr></thead><tbody>${rows.map(x=>`<tr class="clickable" data-report-emp="${eV36(x.e.id)}"><td><b>${eV36(x.e.name)}</b><span class="report-sub-v36">${x.p?eV36(typeof pathName==='function'?pathName(x.p.type):x.p.type):'No path'}</span></td><td><span class="report-status-v36 ${x.status.level}">${eV36(x.status.label)}</span><span class="report-sub-v36">${eV36(x.status.reason)}</span></td><td><span class="report-engagement-v37 ${x.engagement.level}">${eV36(x.engagement.label)}</span><span class="report-engagement-detail-v37">${eV36(x.engagement.reason)}</span></td><td>${eV36(prettyDateV37(x.engagement.lastLogin))}${x.engagement.loginDays!==null?`<span class="report-sub-v36">${x.engagement.loginDays===0?'Today':x.engagement.loginDays+' days ago'}</span>`:''}</td><td>${x.engagement.lastTraining?eV36(x.engagement.lastTraining):'No training recorded'}${x.engagement.trainingDays!==null?`<span class="report-sub-v36">${x.engagement.trainingDays===0?'Today':x.engagement.trainingDays+' days ago'}</span>`:''}</td><td>${eV36((severity[x.engagement.level]??2)<(severity[x.status.level]??2)?x.engagement.reason:x.status.reason)}</td><td><b>${eV36(recommendedActionV36(x.e,x.status,x.engagement))}</b></td></tr>`).join('')}</tbody></table></div>`:'<div class="report-empty-v36">No employees match this status filter.</div>'}</div>`;
     bindReportEmployeesV36();
   }
   function bindReportEmployeesV36(){
@@ -2569,8 +2645,8 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       const rows=employeesV36().map(certSnapshotV36).filter(Boolean);
       csvDownloadV36('certification-progress-report.csv',[['Employee','Overall %','Videos Complete','Videos Required','Section Exams Passed','Section Exams Required','Pace Delta','Level 1','Level 2','Status','Reason'],...rows.map(x=>[x.e.name,x.pct,x.c.videoDone,x.c.videoTotal,x.c.examPassed,x.c.examTotal,x.pace.delta,x.l1,x.l2,x.status.label,x.status.reason])]);
     }else{
-      const rows=employeesV36().map(e=>{const status=employeeAttention(e),p=currentPathV36(e);return[e.name,status.label,p?pathName(p.type):'No path',status.reason,lastActivityV36(e),recommendedActionV36(e,status)]});
-      csvDownloadV36('manager-action-report.csv',[['Employee','Status','Current Path','Reason','Last Activity','Recommended Next Step'],...rows]);
+      const rows=employeesV36().map(e=>{const status=employeeAttention(e),engagement=engagementStatusV37(e),p=currentPathV36(e);return[e.name,status.label,engagement.label,p?pathName(p.type):'No path',engagement.lastLogin||'',engagement.lastTraining||'',status.reason,engagement.reason,recommendedActionV36(e,status,engagement)]});
+      csvDownloadV36('manager-action-report.csv',[['Employee','Training Status','Engagement Status','Current Path','Last Login','Last Training','Training Reason','Engagement Reason','Recommended Next Step'],...rows]);
     }
   }
 
