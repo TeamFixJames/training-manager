@@ -835,10 +835,62 @@ export async function POST(
 
         matchedVideos += 1;
 
-        if (
-          activity.completed === true &&
-          event.completed !== true
-        ) {
+        matchedVideos += 1;
+
+/*
+ * ----------------------------
+ * VIDEO STUDY TIME
+ * ----------------------------
+ *
+ * LearnWorlds time_on_unit is cumulative
+ * study time for this specific activity.
+ *
+ * For video activities, this represents
+ * accumulated video playback time and can
+ * continue increasing after the video has
+ * already been completed.
+ *
+ * Update this on EVERY sync, not only when
+ * completion status changes.
+ */
+const syncedStudyTime =
+  Number(
+    activity.timeSpentSeconds || 0
+  );
+
+const savedStudyTime =
+  Number(
+    event.lwTimeSpentSeconds || 0
+  );
+
+if (
+  syncedStudyTime !==
+  savedStudyTime
+) {
+  event.lwTimeSpentSeconds =
+    syncedStudyTime;
+
+  event.lwDurationSeconds =
+    activity.durationSeconds;
+
+  event.lwProgress =
+    activity.progress;
+
+  event.lwStudyTimeLastSyncedAt =
+    new Date().toISOString();
+
+  changed = true;
+}
+
+/*
+ * ----------------------------
+ * VIDEO COMPLETION
+ * ----------------------------
+ */
+if (
+  activity.completed === true &&
+  event.completed !== true
+) {
           event.completed = true;
 
           event.lwCompleted = true;
