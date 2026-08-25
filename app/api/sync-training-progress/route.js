@@ -394,23 +394,25 @@ function buildSectionExamState(activities) {
      * - completed assessment
      * - score of at least 80
      */
-    const passed =
-      completed &&
-      score !== null &&
-      score >= PASSING_SCORE;
+    const passed = completed;
 
     return {
-      section: exam.section,
-      courseId: exam.courseId,
-      unitId: activity?.unitId || '',
-      title: exam.title,
-      completed,
-      score,
-      requiredScore: PASSING_SCORE,
-      passed,
-      lastSyncedAt:
-        new Date().toISOString()
-    };
+  section: exam.section,
+  courseId: exam.courseId,
+  unitId: activity?.unitId || '',
+  title: exam.title,
+
+  completed,
+  passed,
+
+  score,
+  requiredScore: PASSING_SCORE,
+
+  passSource: 'completion_status',
+
+  lastSyncedAt:
+    new Date().toISOString()
+};
   });
 }
 
