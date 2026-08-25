@@ -197,9 +197,11 @@
 
 <style id="training-activity-status-v28">
 #trainingActivityStatusV28{
-  display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;
+  width:100%;min-height:24px;box-sizing:border-box;
   padding:5px 9px;border:1px solid #d8e1ea;border-radius:999px;
   background:#fff;color:#50657a;font-size:11px;font-weight:700;line-height:1;
+  white-space:nowrap;
 }
 #trainingActivityStatusV28.checking{opacity:.75}
 #trainingActivityStatusV28.ok{color:#24633f}
@@ -933,6 +935,48 @@ function replaceEmployeeStateFromServerV29(employeeId,state){
   }
 }
 
+
+function visibleTrainingStateFingerprintV31(employee){
+  if(!employee || typeof employee!=='object')return '';
+
+  const paths=(employee.paths||[]).map(path=>({
+    id:path.id||'',
+    type:path.type||'',
+    level1Passed:!!path.level1Passed,
+    level2Passed:!!path.level2Passed,
+    events:(path.events||[]).map(event=>({
+      id:event.id||'',
+      kind:event.kind||'',
+      completed:!!event.completed,
+      lwUnitId:event.lwUnitId||'',
+      lwCourseId:event.lwCourseId||''
+    }))
+  }));
+
+  const exams=(employee.certification?.sectionExams||[]).map(exam=>({
+    section:exam.section,
+    unitId:exam.unitId||'',
+    completed:!!exam.completed,
+    passed:!!exam.passed,
+    score:typeof exam.score==='number'?exam.score:null
+  }));
+
+  const level1=employee.certification?.level1||{};
+  const readiness={
+    ready:!!level1.ready,
+    allVideosComplete:!!level1.allVideosComplete,
+    allSectionExamsPassed:!!level1.allSectionExamsPassed,
+    requiredVideoCount:Number(level1.requiredVideoCount||0),
+    completedVideoCount:Number(level1.completedVideoCount||0),
+    requiredSectionExamCount:Number(level1.requiredSectionExamCount||0),
+    passedSectionExamCount:Number(level1.passedSectionExamCount||0),
+    remainingVideoCount:Number(level1.remainingVideoCount||0),
+    remainingSectionExamCount:Number(level1.remainingSectionExamCount||0)
+  };
+
+  return JSON.stringify({paths,exams,readiness});
+}
+
 async function syncTrainingActivityServerV29(employee,{force=false}={}){
   if(!employee?.id || !employee?.learnWorldsManaged){
     return {changed:false,skipped:true};
@@ -989,15 +1033,23 @@ async function syncTrainingActivityServerV29(employee,{force=false}={}){
     trainingActivityLastCheckedV29=Date.now();
 
     if(payload?.state && payload?.changed===true){
-      const scrollX=window.scrollX;
-      const scrollY=window.scrollY;
+      const beforeFingerprint=visibleTrainingStateFingerprintV31(employee);
+      const afterFingerprint=visibleTrainingStateFingerprintV31(payload.state);
 
-      replaceEmployeeStateFromServerV29(employee.id,payload.state);
-      renderAll();
+      // Only rebuild the employee view when something the manager can
+      // actually see has changed. Sync timestamps and other metadata
+      // should never cause a visual refresh.
+      if(beforeFingerprint!==afterFingerprint){
+        const scrollX=window.scrollX;
+        const scrollY=window.scrollY;
 
-      requestAnimationFrame(()=>{
-        window.scrollTo(scrollX,scrollY);
-      });
+        replaceEmployeeStateFromServerV29(employee.id,payload.state);
+        renderAll();
+
+        requestAnimationFrame(()=>{
+          window.scrollTo(scrollX,scrollY);
+        });
+      }
     }
 
     setTrainingActivityStatusV29('ok','Up to date');
