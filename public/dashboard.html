@@ -206,6 +206,77 @@
 #trainingActivityStatusV28.error{color:#9a3f3f}
 </style>
 
+
+<style id="cert-readiness-v30">
+.cert-readiness{
+  margin:14px 0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+}
+.cert-readiness-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:17px 18px;border-bottom:1px solid var(--line);
+}
+.cert-readiness-head h3{margin:0 0 4px;font-size:15px;color:#183b5b}
+.cert-readiness-head p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
+.cert-ready-badge{
+  flex:0 0 auto;padding:7px 10px;border-radius:999px;font-size:10px;font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;border:1px solid #d8e1ea;background:#f6f8fa;color:#5e6d7c;
+}
+.cert-ready-badge.ready{background:#eef8f1;border-color:#c8e8d1;color:#24633f}
+.cert-ready-grid{
+  display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:0;border-bottom:1px solid var(--line);
+}
+.cert-ready-card{padding:16px 18px;border-right:1px solid var(--line)}
+.cert-ready-card:last-child{border-right:0}
+.cert-ready-card label{
+  display:block;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:#7b8a99;margin-bottom:7px;
+}
+.cert-ready-card strong{display:block;font-size:21px;color:#183b5b;line-height:1.1}
+.cert-ready-card small{display:block;color:var(--muted);font-size:10px;margin-top:5px;line-height:1.45}
+.cert-ready-card .mini-bar{height:5px;background:#edf1f5;border-radius:999px;overflow:hidden;margin-top:10px}
+.cert-ready-card .mini-bar i{display:block;height:100%;background:#234f78;border-radius:999px}
+.cert-level-state{display:flex;align-items:center;gap:8px;margin-top:2px}
+.cert-lock-icon{
+  width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  background:#f2f4f7;color:#6b7785;font-size:12px;font-weight:800;
+}
+.cert-level-state.ready .cert-lock-icon{background:#eaf7ee;color:#24633f}
+.cert-exams{padding:0 18px 16px}
+.cert-exams details{border:1px solid var(--line);border-radius:10px;margin-top:14px;overflow:hidden}
+.cert-exams summary{
+  list-style:none;cursor:pointer;padding:11px 13px;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;font-size:11px;font-weight:800;color:#294a68;background:#fafbfc;
+}
+.cert-exams summary::-webkit-details-marker{display:none}
+.cert-exam-list{display:grid;grid-template-columns:1fr 1fr}
+.cert-exam-row{
+  display:grid;grid-template-columns:31px 1fr auto;gap:9px;align-items:center;
+  padding:11px 12px;border-top:1px solid var(--line);
+}
+.cert-exam-row:nth-child(odd){border-right:1px solid var(--line)}
+.cert-exam-num{
+  width:25px;height:25px;border-radius:7px;background:#f2f5f8;display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:800;color:#637485;
+}
+.cert-exam-name b{display:block;font-size:10px;color:#233f59}
+.cert-exam-name small{display:block;font-size:9px;color:#8a98a6;margin-top:2px}
+.cert-exam-result{
+  font-size:9px;font-weight:800;padding:5px 7px;border-radius:999px;background:#f3f5f7;color:#687582;
+  white-space:nowrap;
+}
+.cert-exam-result.pass{background:#eaf7ee;color:#24633f}
+.cert-readiness-note{
+  padding:11px 18px;background:#f9fafb;color:#71808f;font-size:10px;line-height:1.5;
+}
+@media(max-width:900px){
+  .cert-ready-grid{grid-template-columns:1fr}
+  .cert-ready-card{border-right:0;border-bottom:1px solid var(--line)}
+  .cert-ready-card:last-child{border-bottom:0}
+  .cert-exam-list{grid-template-columns:1fr}
+  .cert-exam-row:nth-child(odd){border-right:0}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -496,7 +567,110 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
    note=p.type==='cert'?`<div class="schedule-note"><b>Certification pacing:</b> changing a Video date reflows the remaining certification videos. Weekly Group Calls, webinars, and custom supplemental items can share any date without moving the certification sequence.</div>`:'';
    status=`<span class="status-pill ${pathComplete(p)?'done':'todo'}">${pathComplete(p)?'COMPLETE':'IN PROGRESS'}</span>`;
  }
- const certMilestones=p.type==='cert'?(()=>{const allVideosDone=core.length>0&&core.every(x=>x.completed);const l1Passed=!!p.level1Passed;const l2Passed=!!p.level2Passed;const l1State=l1Passed?'Passed':allVideosDone?'Available':'Locked';const l2State=l2Passed?'Passed':(allVideosDone&&l1Passed)?'Available':'Locked';return `<div class="cert-milestones"><div class="cert-milestones-head"><div><h3>Certification Milestones</h3><p>Certification is gated in order: complete the full video curriculum, pass Level 1, then unlock Level 2.</p></div><span class="status-pill ${l2Passed?'done':'todo'}">${l2Passed?'CERTIFIED':'IN PROGRESS'}</span></div><div class="cert-steps"><div class="cert-step ${allVideosDone?'done':'available'}"><div class="cert-step-num">Milestone 1</div><div class="cert-step-title">Complete Video Curriculum</div><div class="cert-step-copy">Finish all ${core.length} Path to Certification videos.</div><div class="cert-step-status"><span class="cert-state">${allVideosDone?'Complete':completed+' of '+core.length}</span></div></div><div class="cert-step ${l1Passed?'done':allVideosDone?'available':'locked'}"><div class="cert-step-num">Milestone 2</div><div class="cert-step-title">Level 1 Certification</div><div class="cert-step-copy">Level 1 becomes available only after every certification video is complete.</div><div class="cert-step-status"><span class="cert-state">${l1State}</span><button class="cert-pass-btn" id="level1PassBtn" ${allVideosDone?'':'disabled'}>${l1Passed?'Undo Passed':'Mark Passed'}</button></div></div><div class="cert-step ${l2Passed?'done':(allVideosDone&&l1Passed)?'available':'locked'}"><div class="cert-step-num">Milestone 3</div><div class="cert-step-title">Level 2 Certification</div><div class="cert-step-copy">Level 2 unlocks only after the video curriculum is complete and Level 1 is passed.</div><div class="cert-step-status"><span class="cert-state">${l2State}</span><button class="cert-pass-btn" id="level2PassBtn" ${(allVideosDone&&l1Passed)?'':'disabled'}>${l2Passed?'Undo Passed':'Mark Passed'}</button></div></div></div><div class="cert-gate-note">For this prototype, managers record certification results manually. This can later be connected to school/LMS completion data if available.</div></div>`})():'';
+ const certMilestones=p.type==='cert'?(()=>{
+   const cert=e.certification||{};
+   const readiness=cert.level1||null;
+   const exams=Array.isArray(cert.sectionExams)?cert.sectionExams:[];
+
+   const videoTotal=Number(readiness?.requiredVideoCount||core.length||0);
+   const videoDone=Number(readiness?.completedVideoCount||completed||0);
+   const examTotal=Number(readiness?.requiredSectionExamCount||10);
+   const examPassed=Number(readiness?.passedSectionExamCount||exams.filter(x=>x?.passed).length||0);
+   const videosReady=readiness?readiness.allVideosComplete===true:(videoTotal>0&&videoDone===videoTotal);
+   const examsReady=readiness?readiness.allSectionExamsPassed===true:(exams.length===10&&examPassed===10);
+   const level1Ready=readiness?readiness.ready===true:(videosReady&&examsReady);
+   const l1Passed=!!p.level1Passed;
+   const l2Passed=!!p.level2Passed;
+
+   const remaining=[];
+   if(!videosReady)remaining.push(`${Math.max(0,videoTotal-videoDone)} training video${Math.max(0,videoTotal-videoDone)===1?'':'s'}`);
+   if(!examsReady)remaining.push(`${Math.max(0,examTotal-examPassed)} section exam${Math.max(0,examTotal-examPassed)===1?'':'s'}`);
+   const gateCopy=level1Ready
+     ? 'All Path to Certification training requirements are complete.'
+     : (remaining.length?remaining.join(' and ')+' remaining before Level 1 is available.':'Training requirements are still being checked.');
+
+   const examRows=(exams.length?exams:Array.from({length:10},(_,i)=>({
+     section:i+1,title:`Section ${i+1} Exam`,completed:false,passed:false,score:null
+   }))).map(exam=>{
+     const scoreText=typeof exam.score==='number'?`${exam.score}%`:(exam.passed?'Passed':'Not passed');
+     return `<div class="cert-exam-row">
+       <div class="cert-exam-num">${exam.section}</div>
+       <div class="cert-exam-name"><b>${esc(String(exam.title||`Section ${exam.section} Exam`).replace(/^TEST\s*-\s*/i,''))}</b><small>Section ${exam.section} · Required assessment</small></div>
+       <span class="cert-exam-result ${exam.passed?'pass':''}">${exam.passed?'Passed'+(typeof exam.score==='number'?' · '+exam.score+'%':''):scoreText}</span>
+     </div>`;
+   }).join('');
+
+   const l1State=l1Passed?'Passed':level1Ready?'Ready':'Locked';
+   const l2Available=l1Passed;
+   const l2State=l2Passed?'Passed':l2Available?'Ready':'Locked';
+
+   return `<div class="cert-readiness">
+     <div class="cert-readiness-head">
+       <div><h3>Certification Readiness</h3><p>Level 1 becomes available after all required training videos are complete and all 10 section exams are passed.</p></div>
+       <span class="cert-ready-badge ${level1Ready?'ready':''}">${level1Ready?'Level 1 Ready':'Requirements In Progress'}</span>
+     </div>
+
+     <div class="cert-ready-grid">
+       <div class="cert-ready-card">
+         <label>Training Videos</label>
+         <strong>${videoDone} / ${videoTotal}</strong>
+         <small>${videosReady?'All required videos complete':Math.max(0,videoTotal-videoDone)+' remaining'}</small>
+         <div class="mini-bar"><i style="width:${videoTotal?Math.min(100,Math.round(videoDone/videoTotal*100)):0}%"></i></div>
+       </div>
+
+       <div class="cert-ready-card">
+         <label>Section Exams</label>
+         <strong>${examPassed} / ${examTotal}</strong>
+         <small>${examsReady?'All section exams passed':Math.max(0,examTotal-examPassed)+' still need to be passed'}</small>
+         <div class="mini-bar"><i style="width:${examTotal?Math.min(100,Math.round(examPassed/examTotal*100)):0}%"></i></div>
+       </div>
+
+       <div class="cert-ready-card">
+         <label>Level 1 Certification</label>
+         <div class="cert-level-state ${level1Ready?'ready':''}">
+           <span class="cert-lock-icon">${level1Ready?'✓':'🔒'}</span>
+           <strong style="font-size:18px">${l1State}</strong>
+         </div>
+         <small>${l1Passed?'Level 1 has been recorded as passed.':gateCopy}</small>
+       </div>
+     </div>
+
+     <div class="cert-exams">
+       <details>
+         <summary><span>Section Exam Details</span><span>${examPassed} of ${examTotal} passed ▾</span></summary>
+         <div class="cert-exam-list">${examRows}</div>
+       </details>
+     </div>
+
+     <div class="cert-readiness-note">Section exam pass status comes from Training Activity. The training platform only marks these required exams complete after they have been passed.</div>
+   </div>
+
+   <div class="cert-milestones">
+     <div class="cert-milestones-head"><div><h3>Certification Milestones</h3><p>Complete the training requirements, pass Level 1, then proceed to Level 2.</p></div><span class="status-pill ${l2Passed?'done':'todo'}">${l2Passed?'CERTIFIED':'IN PROGRESS'}</span></div>
+     <div class="cert-steps">
+       <div class="cert-step ${level1Ready?'done':'available'}">
+         <div class="cert-step-num">Milestone 1</div>
+         <div class="cert-step-title">Complete Training Requirements</div>
+         <div class="cert-step-copy">Finish all ${videoTotal} Path to Certification videos and pass all ${examTotal} section exams.</div>
+         <div class="cert-step-status"><span class="cert-state">${level1Ready?'Complete':videoDone+'/'+videoTotal+' videos · '+examPassed+'/'+examTotal+' exams'}</span></div>
+       </div>
+
+       <div class="cert-step ${l1Passed?'done':level1Ready?'available':'locked'}">
+         <div class="cert-step-num">Milestone 2</div>
+         <div class="cert-step-title">Level 1 Certification</div>
+         <div class="cert-step-copy">Level 1 is available only after all training requirements are complete.</div>
+         <div class="cert-step-status"><span class="cert-state">${l1State}</span><button class="cert-pass-btn" id="level1PassBtn" ${level1Ready?'':'disabled'}>${l1Passed?'Undo Passed':'Mark Passed'}</button></div>
+       </div>
+
+       <div class="cert-step ${l2Passed?'done':l2Available?'available':'locked'}">
+         <div class="cert-step-num">Milestone 3</div>
+         <div class="cert-step-title">Level 2 Certification</div>
+         <div class="cert-step-copy">Level 2 follows a successful Level 1 Certification result.</div>
+         <div class="cert-step-status"><span class="cert-state">${l2State}</span><button class="cert-pass-btn" id="level2PassBtn" ${l2Available?'':'disabled'}>${l2Passed?'Undo Passed':'Mark Passed'}</button></div>
+       </div>
+     </div>
+     <div class="cert-gate-note">Training requirements sync automatically. Level 1 and Level 2 exam results will be connected to Training Activity in the next step.</div>
+   </div>`})():'';
  const suppCopy=p.type==='ongoing'?'Add the employee’s weekly training activities. These items build an ongoing engagement history and never create a finish date.':'Add live training alongside the employee’s videos. These items appear in the weekly schedule but <b>do not change</b> the 1-video-per-business-day certification pace.';
  $('#content').innerHTML=`${pathTabs(e)}${banner}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addGroupCallBtn">+ Weekly Group Call</button><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics. Add the specific video or activity the employee should complete.':'<b>Weekly Group Call:</b> choose the recurring weekday and time once; it will populate throughout this training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>${p.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Path notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(p.notes)}</div></div>`:''}${e.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Employee notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(e.notes)}</div></div>`:''}`;
  $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;$('#addGroupCallBtn').onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;if(p.type==='cert'){const l1=$('#level1PassBtn'),l2=$('#level2PassBtn');if(l1)l1.onclick=()=>{p.level1Passed=!p.level1Passed;if(!p.level1Passed)p.level2Passed=false;persist();renderAll();showToast(p.level1Passed?'Level 1 marked passed':'Level 1 pass removed')};if(l2)l2.onclick=()=>{p.level2Passed=!p.level2Passed;persist();renderAll();showToast(p.level2Passed?'Level 2 marked passed':'Level 2 pass removed')}}
