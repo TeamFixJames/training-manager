@@ -1231,7 +1231,8 @@ function visibleTrainingStateFingerprintV31(employee){
       kind:event.kind||'',
       completed:!!event.completed,
       lwUnitId:event.lwUnitId||'',
-      lwCourseId:event.lwCourseId||''
+      lwCourseId:event.lwCourseId||'',
+      lwTimeSpentSeconds:Number(event.lwTimeSpentSeconds||0)
     }))
   }));
 
@@ -2406,7 +2407,8 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
         rows.push({
           employee:e.name||'Employee',employeeId:e.id,date:day,title:x.title||'Training',
           category,type:x.kind||'training',path:typeof pathName==='function'?pathName(p.type):p.type,
-          section:x.section||'',runtime:x.duration||'',seconds:secondsV36(x.duration||'')
+          section:x.section||'',runtime:x.duration||'',seconds:secondsV36(x.duration||''),
+          studySeconds:x.kind==='video'?Number(x.lwTimeSpentSeconds||0):0
         });
       }
     }
@@ -2616,17 +2618,20 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     if(type!=='all')rows=rows.filter(x=>x.category===type);
     const videos=rows.filter(x=>x.category==='Video'),live=rows.filter(x=>x.category==='Live'),support=rows.filter(x=>x.category==='Support');
     const time=rows.reduce((n,x)=>n+x.seconds,0);
+    const videoStudyTime=videos.reduce((n,x)=>n+Number(x.studySeconds||0),0);
     const active=new Set(rows.map(x=>x.employeeId)).size;
     document.getElementById('reportOutputV36').innerHTML=`
       <div class="report-kpis-v36">
         <div class="report-kpi-v36"><b>${active}</b><span>Employees Active</span></div>
         <div class="report-kpi-v36"><b>${videos.length}</b><span>Videos Completed</span></div>
+        <div class="report-kpi-v36"><b>${durationV36(time)}</b><span>Scheduled Training Time</span></div>
+        <div class="report-kpi-v36"><b>${durationV36(videoStudyTime)}</b><span>Actual Video Study Time</span></div>
         <div class="report-kpi-v36"><b>${live.length}</b><span>Live Activities</span></div>
         <div class="report-kpi-v36"><b>${support.length}</b><span>Support Tool Uses</span></div>
-        <div class="report-kpi-v36"><b>${durationV36(time)}</b><span>Scheduled Training Time</span></div>
       </div>
+      <div style="font-size:9px;color:#718196;margin:-6px 2px 12px;line-height:1.45"><b>Actual Video Study Time</b> comes from the training platform's accumulated video playback time. It can exceed the video's runtime when a video is watched more than once. For a date-range report, this is the current cumulative study time for the videos represented in the report, not a time-stamped breakdown of when every minute was watched.</div>
       <div class="report-section-v36"><div class="report-section-head-v36"><b>Completed Activity</b><span>${rows.length} records · ${start} to ${end}</span></div>
-      ${rows.length?`<div style="overflow:auto"><table class="report-table-v36"><thead><tr><th>Date</th><th>Employee</th><th>Activity</th><th>Category</th><th>Path / Section</th><th>Runtime</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${eV36(x.date)}</td><td><b>${eV36(x.employee)}</b></td><td>${eV36(x.title)}</td><td>${eV36(x.category)}</td><td>${eV36(x.path)}${x.section?`<span class="report-sub-v36">${eV36(x.section)}</span>`:''}</td><td>${eV36(x.runtime||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="report-empty-v36">No matching activity for this period.</div>'}</div>`;
+      ${rows.length?`<div style="overflow:auto"><table class="report-table-v36"><thead><tr><th>Date</th><th>Employee</th><th>Activity</th><th>Category</th><th>Path / Section</th><th>Runtime</th><th>Video Study Time</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${eV36(x.date)}</td><td><b>${eV36(x.employee)}</b></td><td>${eV36(x.title)}</td><td>${eV36(x.category)}</td><td>${eV36(x.path)}${x.section?`<span class="report-sub-v36">${eV36(x.section)}</span>`:''}</td><td>${eV36(x.runtime||'—')}</td><td>${x.category==='Video'?eV36(durationV36(x.studySeconds||0)):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="report-empty-v36">No matching activity for this period.</div>'}</div>`;
   }
   function renderCertV36(){
     const filter=document.getElementById('reportPathV36')?.value||'all';
@@ -2690,7 +2695,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     if(reportModeV36==='activity'){
       const start=document.getElementById('reportStartV36').value,end=document.getElementById('reportEndV36').value,type=document.getElementById('reportTypeV36')?.value||'all';
       let rows=allActivityV36(employeesV36(),start,end);if(type!=='all')rows=rows.filter(x=>x.category===type);
-      csvDownloadV36(`activity-report-${start}-to-${end}.csv`,[['Employee','Date','Activity','Category','Path','Section','Runtime'],...rows.map(x=>[x.employee,x.date,x.title,x.category,x.path,x.section,x.runtime])]);
+      csvDownloadV36(`activity-report-${start}-to-${end}.csv`,[['Employee','Date','Activity','Category','Path','Section','Runtime','Video Study Time Seconds'],...rows.map(x=>[x.employee,x.date,x.title,x.category,x.path,x.section,x.runtime,x.category==='Video'?Number(x.studySeconds||0):''])]);
     }else if(reportModeV36==='cert'){
       const rows=employeesV36().map(certSnapshotV36).filter(Boolean);
       csvDownloadV36('certification-progress-report.csv',[['Employee','Overall %','Videos Complete','Videos Required','Section Exams Passed','Section Exams Required','Pace Delta','Level 1','Level 2','Status','Reason'],...rows.map(x=>[x.e.name,x.pct,x.c.videoDone,x.c.videoTotal,x.c.examPassed,x.c.examTotal,x.pace.delta,x.l1,x.l2,x.status.label,x.status.reason])]);
