@@ -457,7 +457,16 @@ const certificationSections = [
 const certVideos=certificationSections.flatMap((s,si)=>s.videos.map(([title,duration],vi)=>({section:s.name,sectionIndex:si+1,videoIndex:vi+1,title,duration})));
 const $=s=>document.querySelector(s); const $$=s=>[...document.querySelectorAll(s)];
 const uid=()=>crypto.randomUUID?.()||Math.random().toString(36).slice(2); const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); const date=s=>new Date(s+'T12:00:00');
+const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); const date=s=>{
+  if(s instanceof Date)return s;
+  const v=String(s||'').trim();
+  if(!v)return new Date(NaN);
+  // Schedule dates are stored as YYYY-MM-DD and are interpreted at noon
+  // to avoid timezone date shifts. Synced activity timestamps are already
+  // complete ISO date-times and must not have another time appended.
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v))return new Date(v+'T12:00:00');
+  return new Date(v);
+};
 const fmt=s=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric'}).format(typeof s==='string'?date(s):s);
 const shortFmt=s=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(typeof s==='string'?date(s):s);
 const durationSeconds=t=>{const [m,s]=String(t||'0:00').split(':').map(Number);return (m||0)*60+(s||0)};
