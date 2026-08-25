@@ -26,6 +26,23 @@ async function lwGet(path) {
   return data;
 }
 
+/*
+ * LearnWorlds returns created and last_login
+ * as Unix timestamps with fractional seconds.
+ *
+ * Convert those to ISO timestamps before
+ * sending them to the dashboard.
+ */
+function unixToIso(value) {
+  const timestamp = Number(value);
+
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return null;
+  }
+
+  return new Date(timestamp * 1000).toISOString();
+}
+
 export async function GET() {
   const session = await auth0.getSession();
 
@@ -49,6 +66,7 @@ export async function GET() {
     }
 
     const managerTags = Array.isArray(manager.tags) ? manager.tags : [];
+
     const isSeatManager =
       managerTags.includes('Sales Fix: Account Type: seat-manager') ||
       managerTags.includes('Sales Fix: Account Type: add-seat-manager');
@@ -60,29 +78,36 @@ export async function GET() {
       );
     }
 
-    const managerSeatsResponse = await lwGet(`/users/${manager.id}/seats`);
+    const managerSeatsResponse = await lwGet(
+      `/users/${manager.id}/seats`
+    );
 
     const managerSeats = Array.isArray(managerSeatsResponse?.data?.seats)
       ? managerSeatsResponse.data.seats
       : [];
 
     if (managerSeats.length === 0) {
-  return NextResponse.json(
-    {
-      error: 'No seat offering was found for this manager',
-      manager: {
-        id: manager.id,
-        email: manager.email
-      }
-    },
-    { status: 404 }
-  );
-}
+      return NextResponse.json(
+        {
+          error: 'No seat offering was found for this manager',
+          manager: {
+            id: manager.id,
+            email: manager.email
+          }
+        },
+        { status: 404 }
+      );
+    }
 
-// Match the behavior of the existing Sales Fix manager app.
-// A seat manager does not need their own seat membership to be marked
-// active in order to manage the offering.
-const managedSeat = managerSeats[0];
+    /*
+     * Match the behavior of the existing
+     * Sales Fix manager app.
+     *
+     * A seat manager does not need their
+     * own seat membership to be marked
+     * active in order to manage the offering.
+     */
+    const managedSeat = managerSeats[0];
 
     const seatUsersResponse = await lwGet(
       `/seats/${encodeURIComponent(managedSeat.id)}/users`
@@ -108,9 +133,13 @@ const managedSeat = managerSeats[0];
       let activeInOffering = false;
 
       try {
-        const userSeatsResponse = await lwGet(`/users/${user.id}/seats`);
+        const userSeatsResponse = await lwGet(
+          `/users/${user.id}/seats`
+        );
 
-        const userSeats = Array.isArray(userSeatsResponse?.data?.seats)
+        const userSeats = Array.isArray(
+          userSeatsResponse?.data?.seats
+        )
           ? userSeatsResponse.data.seats
           : [];
 
@@ -127,54 +156,113 @@ const managedSeat = managerSeats[0];
         continue;
       }
 
+      /*
+       * NEW:
+       *
+       * Retrieve the complete LearnWorlds
+       * user record.
+       *
+       * Our diagnostic confirmed that this
+       * object contains last_login and created.
+       *
+       * If this supplemental request fails,
+       * we still keep the employee in the
+       * roster. Their activity timestamps
+       * will simply be unavailable.
+       */
+      let userDetail = null;
+
+      try {
+        userDetail = await lwGet(
+          `/users/${encodeURIComponent(user.id)}`
+        );
+      } catch (error) {
+        console.error(
+          `Unable to load activity metadata for LearnWorlds user ${user.id}:`,
+          error
+        );
+      }
+
       employees.push({
         id: user.id,
         email: user.email,
         firstName: user.fields?.cf_firstname || '',
         lastName: user.fields?.cf_lastname || '',
+
         fullName:
           `${user.fields?.cf_firstname || ''} ${
             user.fields?.cf_lastname || ''
           }`.trim() || user.email,
+
         status: user.status || 'active',
-        tags
+        tags,
+
+        /*
+         * NEW ACTIVITY DATA
+         */
+        lastLogin: unixToIso(
+          userDetail?.last_login
+        ),
+
+        createdAt: unixToIso(
+          userDetail?.created
+        )
       });
     }
 
     employees.sort((a, b) =>
-      a.fullName.localeCompare(b.fullName, undefined, {
-        sensitivity: 'base'
-      })
+      a.fullName.localeCompare(
+        b.fullName,
+        undefined,
+        {
+          sensitivity: 'base'
+        }
+      )
     );
 
     return NextResponse.json({
       manager: {
         id: manager.id,
         email: manager.email,
-        firstName: manager.fields?.cf_firstname || '',
-        lastName: manager.fields?.cf_lastname || ''
+        firstName:
+          manager.fields?.cf_firstname || '',
+        lastName:
+          manager.fields?.cf_lastname || ''
       },
+
       seatOffering: {
         id: managedSeat.id,
         title: managedSeat.title || '',
         active: managedSeat.active === true,
-        gotSeatOn: managedSeat.got_seat_on || null
+        gotSeatOn:
+          managedSeat.got_seat_on || null
       },
+
       employeeCount: employees.length,
+
       employees,
+
       additionalSeatOfferings: Math.max(
-  0,
-  managerSeats.length - 1
+        0,
+        managerSeats.length - 1
       )
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error: 'Unable to load manager team from LearnWorlds',
-        message: error.message,
-        details: error.details || null
+        error:
+          'Unable to load manager team from LearnWorlds',
+
+        message:
+          error.message,
+
+        details:
+          error.details || null
       },
-      { status: error.status || 500 }
+      {
+        status:
+          error.status || 500
+      }
     );
   }
 }
