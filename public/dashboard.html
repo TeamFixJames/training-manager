@@ -319,6 +319,15 @@
 }
 </style>
 
+
+<style id="cert-auto-status-v33">
+.cert-journey-status{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:800;border:1px solid #d8e1ea;background:#f5f7f9;color:#667582}
+.cert-journey-status.ready{background:#eef5fb;border-color:#cfdfec;color:#2f5f87}
+.cert-journey-status.pass{background:#eaf7ee;border-color:#c7e5d0;color:#24633f}
+.cert-journey-status.attempted{background:#fff4e8;border-color:#f0d0a9;color:#9a591d}
+.cert-journey-status.locked{background:#f5f6f7;border-color:#e0e4e8;color:#7b8792}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -639,8 +648,17 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
    const videosReady=readiness?readiness.allVideosComplete===true:(videoTotal>0&&videoDone===videoTotal);
    const examsReady=readiness?readiness.allSectionExamsPassed===true:(exams.length===10&&examPassed===10);
    const level1Ready=readiness?readiness.ready===true:(videosReady&&examsReady);
-   const l1Passed=!!p.level1Passed;
-   const l2Passed=!!p.level2Passed;
+   const level1Exam=cert?.level1?.exam||{};
+   const level2Exam=cert?.level2?.exam||{};
+   const l1Passed=cert?.level1?.passed===true;
+   const l2Passed=cert?.level2?.passed===true;
+   const l1Attempted=level1Exam?.attempted===true;
+   const l2Attempted=level2Exam?.attempted===true;
+   const l1State=l1Passed?'Passed':!level1Ready?'Locked':l1Attempted?'Attempted — Not Passed':'Ready';
+   const l2Available=l1Passed;
+   const l2State=l2Passed?'Passed':!l2Available?'Locked':l2Attempted?'Attempted — Not Passed':'Ready';
+   const l1StatusClass=l1Passed?'pass':(!level1Ready?'locked':(l1Attempted?'attempted':'ready'));
+   const l2StatusClass=l2Passed?'pass':(!l2Available?'locked':(l2Attempted?'attempted':'ready'));
 
    const remaining=[];
    if(!videosReady)remaining.push(`${Math.max(0,videoTotal-videoDone)} training video${Math.max(0,videoTotal-videoDone)===1?'':'s'}`);
@@ -659,10 +677,6 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
        <span class="cert-exam-result ${exam.passed?'pass':''}">${exam.passed?'Passed'+(typeof exam.score==='number'?' · '+exam.score+'%':''):scoreText}</span>
      </div>`;
    }).join('');
-
-   const l1State=l1Passed?'Passed':level1Ready?'Ready':'Locked';
-   const l2Available=l1Passed;
-   const l2State=l2Passed?'Passed':l2Available?'Ready':'Locked';
 
    return `<div class="cert-readiness">
      <div class="cert-readiness-head">
@@ -710,36 +724,32 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
        <h3>Certification Journey</h3>
        <small>Training Requirements → Level 1 → Level 2</small>
      </div>
-
      <div class="cert-journey-track">
        <div class="cert-journey-step ${level1Ready?'done':'ready'}">
          <span class="cert-journey-kicker">Step 1</span>
          <b>Training Requirements</b>
          <small>${level1Ready?'Complete':videoDone+'/'+videoTotal+' videos · '+examPassed+'/'+examTotal+' exams'}</small>
+         <span class="cert-journey-status ${level1Ready?'pass':'ready'}">${level1Ready?'Complete':'In Progress'}</span>
        </div>
-
        <div class="cert-journey-arrow">→</div>
-
        <div class="cert-journey-step ${l1Passed?'done':level1Ready?'ready':'locked'}">
          <span class="cert-journey-kicker">Step 2</span>
          <b>Level 1 Certification</b>
-         <small>${l1Passed?'Passed':level1Ready?'Ready for certification':'Locked until training requirements are complete'}</small>
-         <button class="cert-journey-action cert-pass-btn" id="level1PassBtn" ${level1Ready?'':'disabled'}>${l1Passed?'Undo Passed':'Mark Passed'}</button>
+         <small>${l1Passed?(typeof level1Exam?.score==='number'?'Passed · '+level1Exam.score+'%':'Certification passed'):!level1Ready?'Available after all training requirements are complete':l1Attempted?'Exam attempted but not yet passed':'Training requirements complete · certification exam is ready'}</small>
+         <span class="cert-journey-status ${l1StatusClass}">${l1State}</span>
        </div>
-
        <div class="cert-journey-arrow">→</div>
-
        <div class="cert-journey-step ${l2Passed?'done':l2Available?'ready':'locked'}">
          <span class="cert-journey-kicker">Step 3</span>
          <b>Level 2 Certification</b>
-         <small>${l2Passed?'Passed':l2Available?'Ready for Level 2':'Available after Level 1 is passed'}</small>
-         <button class="cert-journey-action cert-pass-btn" id="level2PassBtn" ${l2Available?'':'disabled'}>${l2Passed?'Undo Passed':'Mark Passed'}</button>
+         <small>${l2Passed?(typeof level2Exam?.score==='number'?'Passed · '+level2Exam.score+'%':'Certification passed'):!l2Available?'Available after Level 1 Certification is passed':l2Attempted?'Exam attempted but not yet passed':'Level 1 passed · Level 2 certification is ready'}</small>
+         <span class="cert-journey-status ${l2StatusClass}">${l2State}</span>
        </div>
      </div>
    </div>`})():'';
  const suppCopy=p.type==='ongoing'?'Add the employee’s weekly training activities. These items build an ongoing engagement history and never create a finish date.':'Add live training alongside the employee’s videos. These items appear in the weekly schedule but <b>do not change</b> the 1-video-per-business-day certification pace.';
  $('#content').innerHTML=`${pathTabs(e)}${banner}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addGroupCallBtn">+ Weekly Group Call</button><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics. Add the specific video or activity the employee should complete.':'<b>Weekly Group Call:</b> choose the recurring weekday and time once; it will populate throughout this training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>${p.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Path notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(p.notes)}</div></div>`:''}${e.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Employee notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(e.notes)}</div></div>`:''}`;
- $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;$('#addGroupCallBtn').onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;if(p.type==='cert'){const l1=$('#level1PassBtn'),l2=$('#level2PassBtn');if(l1)l1.onclick=()=>{p.level1Passed=!p.level1Passed;if(!p.level1Passed)p.level2Passed=false;persist();renderAll();showToast(p.level1Passed?'Level 1 marked passed':'Level 1 pass removed')};if(l2)l2.onclick=()=>{p.level2Passed=!p.level2Passed;persist();renderAll();showToast(p.level2Passed?'Level 2 marked passed':'Level 2 pass removed')}}
+ $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;$('#addGroupCallBtn').onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;
 }
 function scheduleTable(p){const items=scheduleItems(p);let rows='',lastWeek='',weekIndex=0;for(const ev of items){const wk=weekKey(ev.date);if(wk!==lastWeek){lastWeek=wk;weekIndex++;rows+=`<tr class="week-row"><td colspan="11">${weekLabel(ev.date,weekIndex)}<span>${fmt(mondayOf(ev.date))}</span></td></tr>`}const supplemental=ev.kind!=='video';const completedCell=ev.kind==='call'?`<input class="check ev-call-complete" type="checkbox" ${ev.completed?'checked':''}>`:(ev.generated?'—':`<input class="check ev-complete" type="checkbox" ${ev.completed?'checked':''}>`);rows+=`<tr class="${supplemental?'supplemental-row':''}" data-event="${ev.id}" data-kind="${ev.kind}" data-config="${ev.configId||''}" data-date="${ev.date}"><td>${ev.generated?esc(fmt(ev.date)):`<input class="ev-date" type="date" value="${esc(ev.date)}">`}</td><td class="video-title">${esc(ev.title)}</td><td class="section-name">${esc(ev.section||'—')}</td><td><span class="type-pill ${typeClass(ev.kind)}">${typeLabel(ev.kind)}</span></td><td class="runtime">${esc(ev.duration||'—')}</td><td>${esc(ev.time||'—')}</td><td class="check-cell">${completedCell}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-fix" type="checkbox" ${ev.fixMyCall?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-trainer" type="checkbox" ${ev.callTrainer?'checked':''}>`}</td><td>${ev.generated?(ev.recurringCustom?'Recurring custom item':'Recurring call'):`<input class="notes ev-notes" type="text" placeholder="Add a note..." value="${esc(ev.notes)}">`}</td><td>${ev.generated?(ev.recurringCustom?`<button class="icon ev-delete-custom-rec" data-config="${ev.configId}" title="Remove recurring custom training item">×</button>`:`<button class="icon ev-delete-call" data-config="${ev.configId}" title="Remove recurring weekly call">×</button>`):`<button class="icon ev-delete" title="Delete">×</button>`}</td></tr>`}return`<table class="schedule"><thead><tr><th>Date</th><th>Training / Video</th><th>Section</th><th>Type</th><th>Runtime</th><th>Time</th><th>Completed</th><th>Fix My Call</th><th>Call a Trainer</th><th>Notes</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="11" style="padding:24px;color:#98a2b3">No training scheduled yet.</td></tr>'}</tbody></table>`}
 function bindSchedule(e,p){$$('tr[data-event]').forEach(tr=>{const kind=tr.dataset.kind;const customRecBtn=tr.querySelector('.ev-delete-custom-rec');if(customRecBtn){customRecBtn.onclick=()=>{const id=customRecBtn.dataset.config;if(confirm('Remove this recurring custom training item from the entire training path?')){p.recurringCustoms=p.recurringCustoms.filter(x=>x.id!==id);persist();renderAll();showToast('Recurring custom training removed')}};return}if(kind==='call'){const cfg=p.weeklyCalls.find(x=>x.id===tr.dataset.config);const c=tr.querySelector('.ev-call-complete');if(c&&cfg)c.onchange=x=>{cfg.completedDates=Array.isArray(cfg.completedDates)?cfg.completedDates:[];const day=tr.dataset.date;if(x.target.checked){if(!cfg.completedDates.includes(day))cfg.completedDates.push(day)}else{cfg.completedDates=cfg.completedDates.filter(d=>d!==day)}persist();renderAll();showToast(x.target.checked?'Weekly Group Call marked complete':'Weekly Group Call marked incomplete')};const btn=tr.querySelector('.ev-delete-call');if(btn)btn.onclick=()=>{const id=btn.dataset.config;if(confirm('Remove this Weekly Group Call from the entire training path?')){p.weeklyCalls=p.weeklyCalls.filter(x=>x.id!==id);persist();renderAll();showToast('Weekly Group Call removed')}};return}let collection=kind==='webinar'?p.webinars:p.events;const ev=collection.find(x=>x.id===tr.dataset.event);if(!ev)return;const dateInput=tr.querySelector('.ev-date');if(dateInput)dateInput.onchange=x=>{if(!x.target.value)return;ev.date=x.target.value;if(p.type==='cert'&&kind==='video'){reflowCertFrom(p,ev.id);persist();renderAll();showToast('Video date updated · remaining videos rescheduled')}else{persist();renderAll();showToast('Date updated without changing video pace')}};const c=tr.querySelector('.ev-complete');if(c)c.onchange=x=>{ev.completed=x.target.checked;persist();renderAll()};const f=tr.querySelector('.ev-fix');if(f)f.onchange=x=>{ev.fixMyCall=x.target.checked;persist();renderRoster();showToast('Fix My Call updated')};const t=tr.querySelector('.ev-trainer');if(t)t.onchange=x=>{ev.callTrainer=x.target.checked;persist();renderRoster();showToast('Call a Trainer updated')};const n=tr.querySelector('.ev-notes');if(n)n.oninput=x=>{ev.notes=x.target.value;persist()};const d=tr.querySelector('.ev-delete');if(d)d.onclick=()=>{if(kind==='webinar')p.webinars=p.webinars.filter(x=>x.id!==ev.id);else p.events=p.events.filter(x=>x.id!==ev.id);persist();renderAll()}})}
