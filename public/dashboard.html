@@ -279,6 +279,46 @@
 }
 </style>
 
+
+<style id="cert-journey-v32">
+.cert-journey{
+  margin:12px 0 14px;background:#fff;border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;
+}
+.cert-journey-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;
+}
+.cert-journey-head h3{margin:0;font-size:13px;color:#183b5b}
+.cert-journey-head small{color:var(--muted);font-size:9px}
+.cert-journey-track{
+  display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr;align-items:center;gap:6px;
+}
+.cert-journey-step{
+  min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fafbfc;
+}
+.cert-journey-step.done{background:#eef8f1;border-color:#c8e8d1}
+.cert-journey-step.ready{background:#f3f8fc;border-color:#cddfeb}
+.cert-journey-step.locked{background:#fafafa;color:#7a8793}
+.cert-journey-kicker{
+  display:block;font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a98a6;
+  margin-bottom:4px;
+}
+.cert-journey-step b{display:block;font-size:11px;color:#24445f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cert-journey-step small{display:block;font-size:9px;color:#758493;margin-top:3px;line-height:1.35}
+.cert-journey-arrow{text-align:center;color:#a0adb9;font-size:15px;font-weight:700}
+.cert-journey-action{
+  margin-top:7px;padding:5px 8px;border-radius:7px;border:1px solid #cfd8e1;background:#fff;
+  font-size:9px;font-weight:800;color:#355b7a;cursor:pointer;
+}
+.cert-journey-action:disabled{opacity:.45;cursor:not-allowed}
+.cert-readiness-head{padding-bottom:14px}
+.cert-readiness-note{border-top:1px solid var(--line)}
+@media(max-width:900px){
+  .cert-journey-track{grid-template-columns:1fr}
+  .cert-journey-arrow{transform:rotate(90deg)}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -647,31 +687,37 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
      <div class="cert-readiness-note">Section exam pass status comes from Training Activity. The training platform only marks these required exams complete after they have been passed.</div>
    </div>
 
-   <div class="cert-milestones">
-     <div class="cert-milestones-head"><div><h3>Certification Milestones</h3><p>Complete the training requirements, pass Level 1, then proceed to Level 2.</p></div><span class="status-pill ${l2Passed?'done':'todo'}">${l2Passed?'CERTIFIED':'IN PROGRESS'}</span></div>
-     <div class="cert-steps">
-       <div class="cert-step ${level1Ready?'done':'available'}">
-         <div class="cert-step-num">Milestone 1</div>
-         <div class="cert-step-title">Complete Training Requirements</div>
-         <div class="cert-step-copy">Finish all ${videoTotal} Path to Certification videos and pass all ${examTotal} section exams.</div>
-         <div class="cert-step-status"><span class="cert-state">${level1Ready?'Complete':videoDone+'/'+videoTotal+' videos · '+examPassed+'/'+examTotal+' exams'}</span></div>
+   <div class="cert-journey">
+     <div class="cert-journey-head">
+       <h3>Certification Journey</h3>
+       <small>Training Requirements → Level 1 → Level 2</small>
+     </div>
+
+     <div class="cert-journey-track">
+       <div class="cert-journey-step ${level1Ready?'done':'ready'}">
+         <span class="cert-journey-kicker">Step 1</span>
+         <b>Training Requirements</b>
+         <small>${level1Ready?'Complete':videoDone+'/'+videoTotal+' videos · '+examPassed+'/'+examTotal+' exams'}</small>
        </div>
 
-       <div class="cert-step ${l1Passed?'done':level1Ready?'available':'locked'}">
-         <div class="cert-step-num">Milestone 2</div>
-         <div class="cert-step-title">Level 1 Certification</div>
-         <div class="cert-step-copy">Level 1 is available only after all training requirements are complete.</div>
-         <div class="cert-step-status"><span class="cert-state">${l1State}</span><button class="cert-pass-btn" id="level1PassBtn" ${level1Ready?'':'disabled'}>${l1Passed?'Undo Passed':'Mark Passed'}</button></div>
+       <div class="cert-journey-arrow">→</div>
+
+       <div class="cert-journey-step ${l1Passed?'done':level1Ready?'ready':'locked'}">
+         <span class="cert-journey-kicker">Step 2</span>
+         <b>Level 1 Certification</b>
+         <small>${l1Passed?'Passed':level1Ready?'Ready for certification':'Locked until training requirements are complete'}</small>
+         <button class="cert-journey-action cert-pass-btn" id="level1PassBtn" ${level1Ready?'':'disabled'}>${l1Passed?'Undo Passed':'Mark Passed'}</button>
        </div>
 
-       <div class="cert-step ${l2Passed?'done':l2Available?'available':'locked'}">
-         <div class="cert-step-num">Milestone 3</div>
-         <div class="cert-step-title">Level 2 Certification</div>
-         <div class="cert-step-copy">Level 2 follows a successful Level 1 Certification result.</div>
-         <div class="cert-step-status"><span class="cert-state">${l2State}</span><button class="cert-pass-btn" id="level2PassBtn" ${l2Available?'':'disabled'}>${l2Passed?'Undo Passed':'Mark Passed'}</button></div>
+       <div class="cert-journey-arrow">→</div>
+
+       <div class="cert-journey-step ${l2Passed?'done':l2Available?'ready':'locked'}">
+         <span class="cert-journey-kicker">Step 3</span>
+         <b>Level 2 Certification</b>
+         <small>${l2Passed?'Passed':l2Available?'Ready for Level 2':'Available after Level 1 is passed'}</small>
+         <button class="cert-journey-action cert-pass-btn" id="level2PassBtn" ${l2Available?'':'disabled'}>${l2Passed?'Undo Passed':'Mark Passed'}</button>
        </div>
      </div>
-     <div class="cert-gate-note">Training requirements sync automatically. Level 1 and Level 2 exam results will be connected to Training Activity in the next step.</div>
    </div>`})():'';
  const suppCopy=p.type==='ongoing'?'Add the employee’s weekly training activities. These items build an ongoing engagement history and never create a finish date.':'Add live training alongside the employee’s videos. These items appear in the weekly schedule but <b>do not change</b> the 1-video-per-business-day certification pace.';
  $('#content').innerHTML=`${pathTabs(e)}${banner}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addGroupCallBtn">+ Weekly Group Call</button><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics. Add the specific video or activity the employee should complete.':'<b>Weekly Group Call:</b> choose the recurring weekday and time once; it will populate throughout this training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>${p.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Path notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(p.notes)}</div></div>`:''}${e.notes?`<div style="margin-top:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:14px"><b style="font-size:11px">Employee notes</b><div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:pre-wrap">${esc(e.notes)}</div></div>`:''}`;
