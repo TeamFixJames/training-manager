@@ -2605,10 +2605,65 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     else if(reportModeV36==='action')extra.innerHTML='<label>Status</label><select id="reportStatusV36"><option value="all">All Statuses</option><option value="action">Action Needed</option><option value="attention">Needs Attention</option><option value="good">On Track</option></select>';
     else extra.innerHTML='<label>Path</label><select id="reportPathV36"><option value="all">Certification Employees</option><option value="ready">Level 1 Ready</option><option value="passed1">Level 1 Passed</option><option value="certified">Certified</option></select>';
   }
-  function runReportV36(){
-    if(reportModeV36==='activity')renderActivityV36();
-    else if(reportModeV36==='cert')renderCertV36();
-    else renderActionV36();
+  async function refreshReportTrainingDataV39(){
+    const emps=employeesV36().filter(e=>e?.learnWorldsManaged&&e?.id);
+    if(!emps.length)return;
+
+    for(const employee of emps){
+      try{
+        const response=await fetch('/api/sync-training-progress',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          credentials:'same-origin',
+          cache:'no-store',
+          body:JSON.stringify({employeeId:String(employee.id)})
+        });
+
+        const payload=await response.json();
+
+        if(!response.ok||payload?.success===false){
+          console.warn('Report training refresh failed for',employee.id,payload);
+          continue;
+        }
+
+        /*
+         * Reports need the latest server-backed state even when the employee
+         * is not currently selected in the dashboard. Background sync normally
+         * follows only the active employee.
+         *
+         * Replace local state directly without calling renderAll(), so the
+         * Reports screen does not jump while data is refreshed.
+         */
+        if(payload?.state){
+          replaceEmployeeStateFromServerV29(employee.id,payload.state);
+        }
+      }catch(error){
+        console.warn('Report training refresh failed for',employee.id,error);
+      }
+    }
+  }
+
+  async function runReportV36(){
+    const btn=document.getElementById('runReportV36');
+    const oldText=btn?.textContent||'Generate';
+
+    if(btn){
+      btn.disabled=true;
+      btn.textContent='Refreshing…';
+    }
+
+    try{
+      await refreshReportTrainingDataV39();
+
+      if(reportModeV36==='activity')renderActivityV36();
+      else if(reportModeV36==='cert')renderCertV36();
+      else renderActionV36();
+    }finally{
+      if(btn){
+        btn.disabled=false;
+        btn.textContent=oldText;
+      }
+    }
   }
   function renderActivityV36(){
     const start=document.getElementById('reportStartV36').value,end=document.getElementById('reportEndV36').value;
