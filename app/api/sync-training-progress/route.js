@@ -51,7 +51,9 @@ async function fetchAllProgress(userId) {
     }
 
     courses.push(
-      ...(Array.isArray(payload?.data) ? payload.data : [])
+      ...(Array.isArray(payload?.data)
+        ? payload.data
+        : [])
     );
 
     totalPages = Number(
@@ -80,19 +82,26 @@ function flattenActivities(courses) {
           unitId: unit.unit_id || '',
           title: unit.unit_name || '',
           type: unit.unit_type || '',
+
           completed:
             unit.unit_status === 'completed',
+
           progress: Number(
             unit.unit_progress_rate || 0
           ),
+
           score:
-            typeof unit.score === 'number'
-              ? unit.score
-              : null,
+            typeof unit.score_on_unit === 'number'
+              ? unit.score_on_unit
+              : typeof unit.score === 'number'
+                ? unit.score
+                : null,
+
           durationSeconds:
             typeof unit.unit_duration === 'number'
               ? unit.unit_duration
               : null,
+
           timeSpentSeconds:
             typeof unit.time_on_unit === 'number'
               ? unit.time_on_unit
@@ -220,7 +229,8 @@ function normalizedCertificationTitle(title) {
   const normalized = normalizeTitle(title);
 
   return (
-    titleAliases.get(normalized) || normalized
+    titleAliases.get(normalized) ||
+    normalized
   );
 }
 
@@ -229,7 +239,9 @@ function certificationCourse(path, event) {
     return '';
   }
 
-  const section = String(event?.section || '');
+  const section = String(
+    event?.section || ''
+  );
 
   const match = section.match(
     /SECTION\s+(\d+)/i
@@ -288,12 +300,10 @@ function findCertificationActivity(
 }
 
 /*
- * These are the 10 required section exams.
+ * Required section exams.
  *
- * Sections 1-5 = Foundations
- * Sections 6-10 = Advanced
- *
- * Every exam requires 80% to pass.
+ * The LMS only marks these exams complete
+ * after they have been passed.
  */
 const SECTION_EXAMS = [
   {
@@ -356,6 +366,30 @@ const SECTION_EXAMS = [
   }
 ];
 
+const CERTIFICATION_EXAMS = {
+  level1: {
+    courseId:
+      'salesfixcert2026levelone',
+
+    unitId:
+      '68dbead9dcda1518060590fc',
+
+    title:
+      '2026 Level One Certification Exam'
+  },
+
+  level2: {
+    courseId:
+      'salesfixcert2026l2',
+
+    unitId:
+      '68a4daed4cf3192de30aa0ea',
+
+    title:
+      '2026 Level 2 Sales Fix Certification'
+  }
+};
+
 function findSectionExam(
   exam,
   activities
@@ -376,10 +410,15 @@ function findSectionExam(
     : null;
 }
 
-function buildSectionExamState(activities) {
+function buildSectionExamState(
+  activities
+) {
   return SECTION_EXAMS.map((exam) => {
     const activity =
-      findSectionExam(exam, activities);
+      findSectionExam(
+        exam,
+        activities
+      );
 
     const score =
       typeof activity?.score === 'number'
@@ -390,27 +429,104 @@ function buildSectionExamState(activities) {
       activity?.completed === true;
 
     /*
-     * Passing requires BOTH:
-     * - completed assessment
-     * - score of at least 80
+     * Completion status is authoritative.
+     *
+     * The LMS does not mark the required
+     * section exam complete until it has
+     * been passed.
      */
     const passed = completed;
 
     return {
-  section: exam.section,
-  courseId: exam.courseId,
-  unitId: activity?.unitId || '',
-  title: exam.title,
+      section: exam.section,
+      courseId: exam.courseId,
+      unitId: activity?.unitId || '',
+      title: exam.title,
 
-  completed,
-  passed,
+      completed,
+      passed,
 
-  score,
-  requiredScore: PASSING_SCORE,
+      score,
+      requiredScore: PASSING_SCORE,
 
-  passSource: 'completion_status'
-};
+      passSource:
+        'completion_status'
+    };
   });
+}
+
+function buildCertificationExamState(
+  definition,
+  activities
+) {
+  const activity =
+    activities.find(
+      (item) =>
+        item.courseId ===
+          definition.courseId &&
+        item.unitId ===
+          definition.unitId
+    );
+
+  const completed =
+    activity?.completed === true;
+
+  const score =
+    typeof activity?.score === 'number'
+      ? activity.score
+      : null;
+
+  const progress =
+    typeof activity?.progress === 'number'
+      ? activity.progress
+      : 0;
+
+  const timeSpentSeconds =
+    Number(
+      activity?.timeSpentSeconds || 0
+    );
+
+  return {
+    courseId:
+      definition.courseId,
+
+    unitId:
+      definition.unitId,
+
+    title:
+      definition.title,
+
+    found:
+      Boolean(activity),
+
+    completed,
+
+    /*
+     * Certification exam pass status
+     * follows LMS completion status.
+     */
+    passed:
+      completed,
+
+    score,
+
+    progress,
+
+    attempted:
+      Boolean(
+        activity &&
+        (
+          progress > 0 ||
+          timeSpentSeconds > 0 ||
+          completed
+        )
+      ),
+
+    timeSpentSeconds,
+
+    passSource:
+      'completion_status'
+  };
 }
 
 function calculateLevel1Readiness(
@@ -419,32 +535,34 @@ function calculateLevel1Readiness(
 ) {
   const certificationPaths =
     (state?.paths || []).filter(
-      (path) => path?.type === 'cert'
+      (path) =>
+        path?.type === 'cert'
     );
 
   /*
-   * An employee may have more than one Path to
-   * Certification in their saved history.
+   * An employee should normally only
+   * have one Path to Certification.
    *
-   * Level 1 readiness should still count each
-   * required Certification video only once.
+   * If duplicate paths exist, each
+   * required video is still counted once.
    */
-  const uniqueVideos = new Map();
+  const uniqueVideos =
+    new Map();
 
-  for (const path of certificationPaths) {
-    for (const event of path?.events || []) {
-      if (event?.kind !== 'video') {
+  for (
+    const path of
+    certificationPaths
+  ) {
+    for (
+      const event of
+      path?.events || []
+    ) {
+      if (
+        event?.kind !== 'video'
+      ) {
         continue;
       }
 
-      /*
-       * Once synchronized, lwUnitId is the best
-       * permanent identifier.
-       *
-       * Fall back to section + normalized title
-       * for a newly-created path whose IDs have
-       * not been attached yet.
-       */
       const key =
         event.lwUnitId
           ? `unit:${event.lwUnitId}`
@@ -457,24 +575,31 @@ function calculateLevel1Readiness(
       const existing =
         uniqueVideos.get(key);
 
-      /*
-       * If duplicate Certification paths exist,
-       * preserve completion if ANY copy of the
-       * same required video is complete.
-       */
       if (!existing) {
-        uniqueVideos.set(key, event);
+        uniqueVideos.set(
+          key,
+          event
+        );
       } else if (
         event.completed === true &&
         existing.completed !== true
       ) {
-        uniqueVideos.set(key, event);
+        /*
+         * If duplicate paths disagree,
+         * preserve the completed copy.
+         */
+        uniqueVideos.set(
+          key,
+          event
+        );
       }
     }
   }
 
   const certificationVideos =
-    Array.from(uniqueVideos.values());
+    Array.from(
+      uniqueVideos.values()
+    );
 
   const requiredVideoCount =
     certificationVideos.length;
@@ -532,27 +657,37 @@ function calculateLevel1Readiness(
           passedSectionExamCount
       ),
 
-    passingScore: PASSING_SCORE
+    passingScore:
+      PASSING_SCORE
   };
 }
 
-export async function POST(request) {
+export async function POST(
+  request
+) {
   try {
     const managerEmail =
       await getAuthenticatedManager();
 
     if (!managerEmail) {
       return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
+        {
+          error:
+            'Not authenticated'
+        },
+        {
+          status: 401
+        }
       );
     }
 
-    const body = await request.json();
+    const body =
+      await request.json();
 
-    const employeeId = String(
-      body?.employeeId || ''
-    ).trim();
+    const employeeId =
+      String(
+        body?.employeeId || ''
+      ).trim();
 
     if (!employeeId) {
       return NextResponse.json(
@@ -560,7 +695,9 @@ export async function POST(request) {
           error:
             'employeeId is required'
         },
-        { status: 400 }
+        {
+          status: 400
+        }
       );
     }
 
@@ -587,32 +724,42 @@ export async function POST(request) {
           error:
             'Training Manager state not found for employee'
         },
-        { status: 404 }
+        {
+          status: 404
+        }
       );
     }
 
     const state =
-      stateResult.rows[0].state || {};
+      stateResult.rows[0].state ||
+      {};
 
     const courses =
-      await fetchAllProgress(employeeId);
+      await fetchAllProgress(
+        employeeId
+      );
 
     const activities =
-      flattenActivities(courses);
+      flattenActivities(
+        courses
+      );
 
-    const byUnitId = new Map(
-      activities
-        .filter(
-          (activity) =>
-            activity.unitId
-        )
-        .map(
-          (activity) => [
-            String(activity.unitId),
-            activity
-          ]
-        )
-    );
+    const byUnitId =
+      new Map(
+        activities
+          .filter(
+            (activity) =>
+              activity.unitId
+          )
+          .map(
+            (activity) => [
+              String(
+                activity.unitId
+              ),
+              activity
+            ]
+          )
+      );
 
     let changed = false;
     let matchedVideos = 0;
@@ -625,7 +772,8 @@ export async function POST(request) {
      * ----------------------------
      */
     for (
-      const path of state?.paths || []
+      const path of
+      state?.paths || []
     ) {
       for (
         const event of
@@ -642,13 +790,15 @@ export async function POST(request) {
         if (event.lwUnitId) {
           activity =
             byUnitId.get(
-              String(event.lwUnitId)
+              String(
+                event.lwUnitId
+              )
             ) || null;
         }
 
         /*
          * Newly-created Certification
-         * paths may not have IDs yet.
+         * paths may not yet have IDs.
          */
         if (
           !activity &&
@@ -690,6 +840,7 @@ export async function POST(request) {
           event.completed !== true
         ) {
           event.completed = true;
+
           event.lwCompleted = true;
 
           event.lwProgress =
@@ -719,7 +870,7 @@ export async function POST(request) {
 
     /*
      * ----------------------------
-     * SECTION EXAM SYNC
+     * SECTION EXAMS
      * ----------------------------
      */
     const sectionExams =
@@ -727,57 +878,100 @@ export async function POST(request) {
         activities
       );
 
-    const previousExamState =
-      JSON.stringify(
-        state?.certification
-          ?.sectionExams || []
-      );
-
-    const newExamState =
-      JSON.stringify(sectionExams);
-
-    if (
-      previousExamState !==
-      newExamState
-    ) {
-      changed = true;
-    }
-
     /*
      * ----------------------------
      * LEVEL 1 READINESS
      * ----------------------------
      */
-    const level1 =
+    const level1Readiness =
       calculateLevel1Readiness(
         state,
         sectionExams
       );
 
-    const previousLevel1 =
-      JSON.stringify(
-        state?.certification
-          ?.level1 || {}
+    /*
+     * ----------------------------
+     * CERTIFICATION EXAMS
+     * ----------------------------
+     */
+    const level1Exam =
+      buildCertificationExamState(
+        CERTIFICATION_EXAMS.level1,
+        activities
       );
 
-    const newLevel1 =
-      JSON.stringify(level1);
+    const level2Exam =
+      buildCertificationExamState(
+        CERTIFICATION_EXAMS.level2,
+        activities
+      );
+
+    /*
+     * Build the complete Certification
+     * state without timestamps so normal
+     * background checks do not cause
+     * unnecessary visual refreshes.
+     */
+    const nextCertification = {
+      ...(state.certification || {}),
+
+      sectionExams,
+
+      level1: {
+        ...level1Readiness,
+
+        passed:
+          level1Exam.passed === true,
+
+        exam:
+          level1Exam
+      },
+
+      level2: {
+        /*
+         * Level 2 becomes available only
+         * after Level 1 has actually passed.
+         */
+        available:
+          level1Exam.passed === true,
+
+        passed:
+          level2Exam.passed === true,
+
+        exam:
+          level2Exam
+      }
+    };
+
+    const previousCertification =
+      JSON.stringify(
+        state.certification || {}
+      );
+
+    const nextCertificationString =
+      JSON.stringify(
+        nextCertification
+      );
 
     if (
-      previousLevel1 !== newLevel1
+      previousCertification !==
+      nextCertificationString
     ) {
       changed = true;
     }
 
-    state.certification = {
-      ...(state.certification || {}),
-      sectionExams,
-      level1
-    };
+    state.certification =
+      nextCertification;
 
     const checkedAt =
       new Date().toISOString();
 
+    /*
+     * This timestamp is informational
+     * only and is NOT used when deciding
+     * whether the visible certification
+     * state changed.
+     */
     state.trainingActivityLastCheckedAt =
       checkedAt;
 
@@ -791,11 +985,15 @@ export async function POST(request) {
         await db.query(
           `
             UPDATE training_manager_state
+
             SET
               state = $1::jsonb,
               updated_at = NOW()
-            WHERE manager_email = $2
+
+            WHERE
+              manager_email = $2
               AND employee_lw_id = $3
+
             RETURNING
               state,
               updated_at
@@ -816,12 +1014,18 @@ export async function POST(request) {
         newlyCompleted,
 
         sectionExams,
-        level1,
+
+        level1:
+          nextCertification.level1,
+
+        level2:
+          nextCertification.level2,
 
         checkedAt,
 
         state:
-          updateResult.rows[0].state,
+          updateResult.rows[0]
+            .state,
 
         updatedAt:
           updateResult.rows[0]
@@ -838,9 +1042,15 @@ export async function POST(request) {
       newlyCompleted: 0,
 
       sectionExams,
-      level1,
+
+      level1:
+        nextCertification.level1,
+
+      level2:
+        nextCertification.level2,
 
       checkedAt,
+
       state
     });
   } catch (error) {
