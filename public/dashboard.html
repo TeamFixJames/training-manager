@@ -409,7 +409,9 @@
   <div class="modal-head"><h3>Add Weekly Group Call</h3><button class="icon" id="closeGroupCallModal">×</button></div>
   <div class="modal-body">
     <div class="field"><label>Display name</label><input id="groupCallName" value="Weekly Group Call"></div>
-    <div class="two"><div class="field"><label>Day of week</label><select id="groupCallDay"><option value="2">Tuesday</option><option value="3" selected>Wednesday</option><option value="4">Thursday</option></select></div><div class="field"><label>Time</label><input id="groupCallTime" type="time" value="12:00"></div></div>
+    <div class="two"><div class="field"><label>Day of week</label><select id="groupCallDay"><option value="2">Tuesday</option><option value="3" selected>Wednesday</option><option value="4">Thursday</option></select></div><div class="field"><label>Your time zone</label><select id="groupCallZone"><option value="PT">Pacific</option><option value="MT">Mountain</option><option value="CT" selected>Central</option><option value="ET">Eastern</option></select></div></div>
+    <div class="field"><label>Group Call Session</label><select id="groupCallSession"></select><div class="muted-note" style="margin-top:5px">Sales Fix Group Calls are offered at 10:00 AM, 12:00 PM, and 2:00 PM Central. The options above are converted to your selected time zone.</div></div>
+    <input id="groupCallTime" type="hidden" value="12:00">
     <div class="field"><label>Runtime / duration</label><input id="groupCallDuration" value="01:00:00" readonly><div style="font-size:10px;color:#718196;margin-top:4px">Weekly Group Calls are always counted as 1 hour of live training.</div></div>
     <div class="muted-note">The call will appear every week throughout this training path. It is supplemental and will not change the Path to Certification video pace.</div>
   </div>
@@ -934,9 +936,36 @@ function updatePathDailyTrainingTime(newTime){
   renderAll();
   showToast('Daily training time updated for all videos');
 }
-function openGroupCallModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#groupCallName').value='Weekly Group Call';$('#groupCallDay').value='3';$('#groupCallTime').value='12:00';$('#groupCallDuration').value='01:00:00';$('#groupCallModal').classList.add('show')}
+const GROUP_CALL_CENTRAL_SESSIONS=['10:00','12:00','14:00'];
+const GROUP_CALL_ZONE_OFFSETS={PT:-2,MT:-1,CT:0,ET:1};
+function shiftHourTimeV35(time,offset){
+  const [h,m]=String(time).split(':').map(Number);
+  const hour=(h+offset+24)%24;
+  return String(hour).padStart(2,'0')+':'+String(m||0).padStart(2,'0');
+}
+function displayTimeV35(time){
+  const [h,m]=String(time).split(':').map(Number);
+  const suffix=h>=12?'PM':'AM';
+  const hour=((h+11)%12)+1;
+  return `${hour}:${String(m||0).padStart(2,'0')} ${suffix}`;
+}
+function refreshGroupCallSessionsV35(preferredCentral='12:00'){
+  const zone=$('#groupCallZone')?.value||'CT';
+  const sel=$('#groupCallSession');
+  if(!sel)return;
+  const offset=GROUP_CALL_ZONE_OFFSETS[zone]??0;
+  sel.innerHTML=GROUP_CALL_CENTRAL_SESSIONS.map(ct=>{
+    const local=shiftHourTimeV35(ct,offset);
+    return `<option value="${ct}" ${ct===preferredCentral?'selected':''}>${displayTimeV35(local)} ${zone} · ${displayTimeV35(ct)} Central</option>`;
+  }).join('');
+  const central=sel.value||preferredCentral;
+  const local=shiftHourTimeV35(central,offset);
+  const hidden=$('#groupCallTime');
+  if(hidden)hidden.value=local;
+}
+function openGroupCallModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#groupCallName').value='Weekly Group Call';$('#groupCallDay').value='3';$('#groupCallZone').value='CT';$('#groupCallDuration').value='01:00:00';refreshGroupCallSessionsV35('12:00');$('#groupCallModal').classList.add('show')}
 function closeGroupCallModal(){$('#groupCallModal').classList.remove('show')}
-function saveGroupCall(){const p=activePath(active());if(!p)return;ensurePathExtras(p);p.weeklyCalls.push({id:uid(),title:$('#groupCallName').value.trim()||'Weekly Group Call',weekday:Number($('#groupCallDay').value),time:$('#groupCallTime').value||'12:00',duration:'01:00:00',completedDates:[]});persist();closeGroupCallModal();renderAll();showToast('Weekly Group Call added across schedule')}
+function saveGroupCall(){const p=activePath(active());if(!p)return;ensurePathExtras(p);const zone=$('#groupCallZone').value||'CT',centralSession=$('#groupCallSession').value||'12:00',time=shiftHourTimeV35(centralSession,GROUP_CALL_ZONE_OFFSETS[zone]??0);p.weeklyCalls.push({id:uid(),title:$('#groupCallName').value.trim()||'Weekly Group Call',weekday:Number($('#groupCallDay').value),time,timezone:zone,centralSession,duration:'01:00:00',completedDates:[]});persist();closeGroupCallModal();renderAll();showToast(`Weekly Group Call added · ${displayTimeV35(time)} ${zone}`)}
 function openWebinarModal(){const p=activePath(active());if(!p)return;ensurePathExtras(p);$('#webinarTitle').value='';$('#webinarDate').value=p.startDate;$('#webinarTime').value='12:00';$('#webinarDuration').value='';$('#webinarModal').classList.add('show')}
 function closeWebinarModal(){$('#webinarModal').classList.remove('show')}
 function saveWebinar(){const p=activePath(active());if(!p)return;ensurePathExtras(p);const title=$('#webinarTitle').value.trim(),d=$('#webinarDate').value,duration=$('#webinarDuration').value.trim();if(!title||!d){alert('Please enter a webinar title and date.');return}if(duration&&!/^\d{1,2}:\d{2}:\d{2}$/.test(duration)){alert('Enter webinar duration as HH:MM:SS. Example: 01:00:00 for one hour.');$('#webinarDuration').focus();return}p.webinars.push({id:uid(),kind:'webinar',date:d,section:'',title,duration,time:$('#webinarTime').value||'12:00',completed:false,fixMyCall:false,callTrainer:false,notes:''});persist();closeWebinarModal();renderAll();showToast('Webinar added without changing video pace')}
@@ -945,7 +974,7 @@ function closeCustomTrainingModal(){$('#customTrainingModal').classList.remove('
 function updateCustomTrainingHint(){const p=activePath(active());const recurring=$('#customTrainingRecurrence').value==='weekly';if(p?.type==='ongoing')$('#customTrainingHint').textContent=recurring?'This item will repeat weekly in the rolling Ongoing Training schedule. Ongoing Training has no finish date.':'A one-time training item will be added to the employee’s ongoing weekly training history.';else $('#customTrainingHint').textContent=recurring?'This item will repeat every 7 days through the current training path. It will not change certification video dates.':'A one-time custom item will appear on the selected date without changing certification video dates.'}
 function saveCustomTraining(){const p=activePath(active());if(!p)return;ensurePathExtras(p);const title=$('#customTrainingName').value.trim(),d=$('#customTrainingDate').value,time=$('#customTrainingTime').value||p.defaultTime||'08:00',duration=$('#customTrainingDuration').value.trim(),recurrence=$('#customTrainingRecurrence').value;if(!title||!d){alert('Please enter a training item name and date.');return}if(recurrence==='weekly'){p.recurringCustoms.push({id:uid(),title,startDate:d,time,duration});}else{p.events.push({id:uid(),kind:'custom',date:d,section:'',title,duration,time,completed:false,fixMyCall:false,callTrainer:false,notes:''});}persist();closeCustomTrainingModal();renderAll();showToast(recurrence==='weekly'?'Recurring custom training added':'Custom training added without changing video pace')}
 function csv(){const e=active();if(!e)return;const rows=[['Employee','Manager','Training Path','Path Start','Date','Training / Video','Section','Type','Runtime','Time','Completed','Fix My Call','Call a Trainer','Notes']];e.paths.forEach(p=>scheduleItems(p).forEach(x=>rows.push([e.name,e.manager,pathName(p.type),p.startDate,x.date,x.title,x.section,typeLabel(x.kind),x.duration,x.time,x.completed?'Yes':'No',x.fixMyCall?'Yes':'No',x.callTrainer?'Yes':'No',x.notes])));const text=rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=e.name.trim().replace(/\s+/g,'_')+'_training_history.csv';a.click();URL.revokeObjectURL(a.href)}
-$('#addEmployeeBtn').onclick=()=>openEmployeeModal();$('#editEmployeeBtn').onclick=()=>openEmployeeModal(db.activeId);$('#csvBtn').onclick=csv;$('#closeModal').onclick=closeEmployeeModal;$('#cancelModal').onclick=closeEmployeeModal;$('#saveEmployeeBtn').onclick=saveEmployee;$('#employeeModal').onclick=e=>{if(e.target===$('#employeeModal'))closeEmployeeModal()};$('#closePathModal').onclick=closePathModal;$('#cancelPathModal').onclick=closePathModal;$('#savePathBtn').onclick=savePath;$('#pathModal').onclick=e=>{if(e.target===$('#pathModal'))closePathModal()};$('#closeGroupCallModal').onclick=closeGroupCallModal;$('#cancelGroupCallModal').onclick=closeGroupCallModal;$('#saveGroupCallBtn').onclick=saveGroupCall;$('#groupCallModal').onclick=e=>{if(e.target===$('#groupCallModal'))closeGroupCallModal()};$('#closeWebinarModal').onclick=closeWebinarModal;$('#cancelWebinarModal').onclick=closeWebinarModal;$('#saveWebinarBtn').onclick=saveWebinar;$('#webinarModal').onclick=e=>{if(e.target===$('#webinarModal'))closeWebinarModal()};$('#closeCustomTrainingModal').onclick=closeCustomTrainingModal;$('#cancelCustomTrainingModal').onclick=closeCustomTrainingModal;$('#saveCustomTrainingBtn').onclick=saveCustomTraining;$('#customTrainingRecurrence').onchange=updateCustomTrainingHint;$('#customTrainingModal').onclick=e=>{if(e.target===$('#customTrainingModal'))closeCustomTrainingModal()};
+$('#addEmployeeBtn').onclick=()=>openEmployeeModal();$('#editEmployeeBtn').onclick=()=>openEmployeeModal(db.activeId);$('#csvBtn').onclick=csv;$('#closeModal').onclick=closeEmployeeModal;$('#cancelModal').onclick=closeEmployeeModal;$('#saveEmployeeBtn').onclick=saveEmployee;$('#employeeModal').onclick=e=>{if(e.target===$('#employeeModal'))closeEmployeeModal()};$('#closePathModal').onclick=closePathModal;$('#cancelPathModal').onclick=closePathModal;$('#savePathBtn').onclick=savePath;$('#pathModal').onclick=e=>{if(e.target===$('#pathModal'))closePathModal()};$('#closeGroupCallModal').onclick=closeGroupCallModal;$('#cancelGroupCallModal').onclick=closeGroupCallModal;$('#saveGroupCallBtn').onclick=saveGroupCall;$('#groupCallZone').onchange=()=>refreshGroupCallSessionsV35($('#groupCallSession').value||'12:00');$('#groupCallSession').onchange=()=>refreshGroupCallSessionsV35($('#groupCallSession').value||'12:00');$('#groupCallModal').onclick=e=>{if(e.target===$('#groupCallModal'))closeGroupCallModal()};$('#closeWebinarModal').onclick=closeWebinarModal;$('#cancelWebinarModal').onclick=closeWebinarModal;$('#saveWebinarBtn').onclick=saveWebinar;$('#webinarModal').onclick=e=>{if(e.target===$('#webinarModal'))closeWebinarModal()};$('#closeCustomTrainingModal').onclick=closeCustomTrainingModal;$('#cancelCustomTrainingModal').onclick=closeCustomTrainingModal;$('#saveCustomTrainingBtn').onclick=saveCustomTraining;$('#customTrainingRecurrence').onchange=updateCustomTrainingHint;$('#customTrainingModal').onclick=e=>{if(e.target===$('#customTrainingModal'))closeCustomTrainingModal()};
 
 // Resilient Add Training Path handler: works even after dashboard re-renders
 // and for roster employees who do not yet have a training path.
