@@ -8,35 +8,18 @@ const lwHeaders = {
   Accept: 'application/json'
 };
 
-function unixToIso(value) {
-  const n = Number(value);
-
-  if (!Number.isFinite(n) || n <= 0) {
-    return null;
-  }
-
-  return new Date(n * 1000).toISOString();
-}
-
 async function lwGet(path) {
-  const response = await fetch(
-    `${process.env.LW_API_URL}${path}`,
-    {
-      headers: lwHeaders,
-      cache: 'no-store'
-    }
-  );
+  const response = await fetch(`${process.env.LW_API_URL}${path}`, {
+    headers: lwHeaders,
+    cache: 'no-store'
+  });
 
   const data = await response.json();
 
   if (!response.ok) {
-    const error = new Error(
-      `LearnWorlds request failed: ${response.status}`
-    );
-
+    const error = new Error(`LearnWorlds request failed: ${response.status}`);
     error.status = response.status;
     error.details = data;
-
     throw error;
   }
 
@@ -48,192 +31,94 @@ export async function GET() {
 
   if (!session?.user?.email) {
     return NextResponse.json(
-      {
-        error: 'Not authenticated'
-      },
-      {
-        status: 401
-      }
+      { error: 'Not authenticated' },
+      { status: 401 }
     );
   }
 
   try {
-    /*
-     * Find the authenticated manager's
-     * LearnWorlds user record.
-     */
     const manager = await lwGet(
-      `/users/${encodeURIComponent(
-        session.user.email
-      )}`
+      `/users/${encodeURIComponent(session.user.email)}`
     );
 
     if (!manager?.id) {
       return NextResponse.json(
-        {
-          error:
-            'Matching LearnWorlds manager was not found'
-        },
-        {
-          status: 404
-        }
+        { error: 'Matching LearnWorlds manager was not found' },
+        { status: 404 }
       );
     }
 
-    /*
-     * Confirm this user is actually
-     * a Sales Fix seat manager.
-     */
-    const managerTags =
-      Array.isArray(manager.tags)
-        ? manager.tags
-        : [];
-
+    const managerTags = Array.isArray(manager.tags) ? manager.tags : [];
     const isSeatManager =
-      managerTags.includes(
-        'Sales Fix: Account Type: seat-manager'
-      ) ||
-      managerTags.includes(
-        'Sales Fix: Account Type: add-seat-manager'
-      );
+      managerTags.includes('Sales Fix: Account Type: seat-manager') ||
+      managerTags.includes('Sales Fix: Account Type: add-seat-manager');
 
     if (!isSeatManager) {
       return NextResponse.json(
-        {
-          error:
-            'Authenticated user is not a Sales Fix seat manager'
-        },
-        {
-          status: 403
-        }
+        { error: 'Authenticated user is not a Sales Fix seat manager' },
+        { status: 403 }
       );
     }
 
-    /*
-     * Get the seat offerings belonging
-     * to this manager.
-     */
-    const managerSeatsResponse =
-      await lwGet(
-        `/users/${manager.id}/seats`
-      );
+    const managerSeatsResponse = await lwGet(`/users/${manager.id}/seats`);
 
-    const managerSeats =
-      Array.isArray(
-        managerSeatsResponse?.data?.seats
-      )
-        ? managerSeatsResponse.data.seats
-        : [];
+    const managerSeats = Array.isArray(managerSeatsResponse?.data?.seats)
+      ? managerSeatsResponse.data.seats
+      : [];
 
-    const activeManagerSeats =
-      managerSeats.filter(
-        (seat) => seat?.active === true
-      );
+    if (managerSeats.length === 0) {
+  return NextResponse.json(
+    {
+      error: 'No seat offering was found for this manager',
+      manager: {
+        id: manager.id,
+        email: manager.email
+      }
+    },
+    { status: 404 }
+  );
+}
 
-    if (
-      activeManagerSeats.length === 0
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'No active seat offering was found for this manager',
+// Match the behavior of the existing Sales Fix manager app.
+// A seat manager does not need their own seat membership to be marked
+// active in order to manage the offering.
+const managedSeat = managerSeats[0];
 
-          manager: {
-            id: manager.id,
-            email: manager.email
-          }
-        },
-        {
-          status: 404
-        }
-      );
-    }
+    const seatUsersResponse = await lwGet(
+      `/seats/${encodeURIComponent(managedSeat.id)}/users`
+    );
 
-    /*
-     * Training Manager currently uses
-     * the manager's first active
-     * seat offering.
-     */
-    const managedSeat =
-      activeManagerSeats[0];
-
-    /*
-     * Get all users associated with
-     * that seat offering.
-     */
-    const seatUsersResponse =
-      await lwGet(
-        `/seats/${encodeURIComponent(
-          managedSeat.id
-        )}/users`
-      );
-
-    const seatUsers =
-      Array.isArray(
-        seatUsersResponse?.data
-      )
-        ? seatUsersResponse.data
-        : [];
+    const seatUsers = Array.isArray(seatUsersResponse?.data)
+      ? seatUsersResponse.data
+      : [];
 
     const employees = [];
 
     for (const user of seatUsers) {
-      const tags =
-        Array.isArray(user.tags)
-          ? user.tags
-          : [];
+      const tags = Array.isArray(user.tags) ? user.tags : [];
 
-      /*
-       * Only include student accounts.
-       * Seat managers themselves should
-       * not appear as employees.
-       */
       const isStudent =
-        tags.some(
-          (tag) =>
-            tag.includes('Student')
-        ) &&
-        !tags.some(
-          (tag) =>
-            tag.includes(
-              'seat-manager'
-            )
-        );
+        tags.some((tag) => tag.includes('Student')) &&
+        !tags.some((tag) => tag.includes('seat-manager'));
 
       if (!isStudent) {
         continue;
       }
 
-      /*
-       * Confirm the employee is still
-       * active in this seat offering.
-       */
       let activeInOffering = false;
 
       try {
-        const userSeatsResponse =
-          await lwGet(
-            `/users/${user.id}/seats`
-          );
+        const userSeatsResponse = await lwGet(`/users/${user.id}/seats`);
 
-        const userSeats =
-          Array.isArray(
-            userSeatsResponse
-              ?.data?.seats
-          )
-            ? userSeatsResponse
-                .data.seats
-            : [];
+        const userSeats = Array.isArray(userSeatsResponse?.data?.seats)
+          ? userSeatsResponse.data.seats
+          : [];
 
-        const offeringSeat =
-          userSeats.find(
-            (seat) =>
-              seat.id ===
-              managedSeat.id
-          );
+        const offeringSeat = userSeats.find(
+          (seat) => seat.id === managedSeat.id
+        );
 
-        activeInOffering =
-          offeringSeat?.active === true;
+        activeInOffering = offeringSeat?.active === true;
       } catch {
         activeInOffering = false;
       }
@@ -242,185 +127,54 @@ export async function GET() {
         continue;
       }
 
-      /*
-       * IMPORTANT:
-       *
-       * The seat-user response does
-       * not always contain the full
-       * LearnWorlds user object.
-       *
-       * Retrieve the complete user
-       * record so we have authoritative
-       * Last Login and Created values
-       * for engagement reporting.
-       */
-      let userDetail = user;
-
-      try {
-        userDetail =
-          await lwGet(
-            `/users/${encodeURIComponent(
-              user.id
-            )}`
-          );
-      } catch {
-        /*
-         * Do not break the roster if
-         * this supplemental request
-         * happens to fail.
-         */
-        userDetail = user;
-      }
-
       employees.push({
         id: user.id,
-
-        email:
-          userDetail.email ||
-          user.email,
-
-        firstName:
-          userDetail.fields
-            ?.cf_firstname ||
-          user.fields
-            ?.cf_firstname ||
-          '',
-
-        lastName:
-          userDetail.fields
-            ?.cf_lastname ||
-          user.fields
-            ?.cf_lastname ||
-          '',
-
+        email: user.email,
+        firstName: user.fields?.cf_firstname || '',
+        lastName: user.fields?.cf_lastname || '',
         fullName:
-          `${
-            userDetail.fields
-              ?.cf_firstname ||
-            user.fields
-              ?.cf_firstname ||
-            ''
-          } ${
-            userDetail.fields
-              ?.cf_lastname ||
-            user.fields
-              ?.cf_lastname ||
-            ''
-          }`.trim() ||
-          userDetail.email ||
-          user.email,
-
-        status:
-          userDetail.status ||
-          user.status ||
-          'active',
-
-        tags:
-          Array.isArray(
-            userDetail.tags
-          )
-            ? userDetail.tags
-            : tags,
-
-        /*
-         * NEW:
-         *
-         * LearnWorlds user activity
-         * metadata used by Training
-         * Manager engagement and
-         * inactivity reporting.
-         *
-         * LearnWorlds returns these as
-         * Unix timestamps. Convert them
-         * to ISO timestamps before
-         * sending them to the dashboard.
-         */
-        lastLogin:
-          unixToIso(
-            userDetail.last_login
-          ),
-
-        createdAt:
-          unixToIso(
-            userDetail.created
-          )
+          `${user.fields?.cf_firstname || ''} ${
+            user.fields?.cf_lastname || ''
+          }`.trim() || user.email,
+        status: user.status || 'active',
+        tags
       });
     }
 
-    /*
-     * Alphabetize roster.
-     */
-    employees.sort(
-      (a, b) =>
-        a.fullName.localeCompare(
-          b.fullName,
-          undefined,
-          {
-            sensitivity: 'base'
-          }
-        )
+    employees.sort((a, b) =>
+      a.fullName.localeCompare(b.fullName, undefined, {
+        sensitivity: 'base'
+      })
     );
 
     return NextResponse.json({
       manager: {
         id: manager.id,
         email: manager.email,
-
-        firstName:
-          manager.fields
-            ?.cf_firstname ||
-          '',
-
-        lastName:
-          manager.fields
-            ?.cf_lastname ||
-          ''
+        firstName: manager.fields?.cf_firstname || '',
+        lastName: manager.fields?.cf_lastname || ''
       },
-
       seatOffering: {
         id: managedSeat.id,
-
-        title:
-          managedSeat.title ||
-          '',
-
-        active:
-          managedSeat.active === true,
-
-        gotSeatOn:
-          managedSeat.got_seat_on ||
-          null
+        title: managedSeat.title || '',
+        active: managedSeat.active === true,
+        gotSeatOn: managedSeat.got_seat_on || null
       },
-
-      employeeCount:
-        employees.length,
-
+      employeeCount: employees.length,
       employees,
-
-      additionalActiveSeatOfferings:
-        Math.max(
-          0,
-          activeManagerSeats.length - 1
-        )
+      additionalSeatOfferings: Math.max(
+  0,
+  managerSeats.length - 1
+      )
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          'Unable to load manager team from LearnWorlds',
-
-        message:
-          error.message,
-
-        details:
-          error.details ||
-          null
+        error: 'Unable to load manager team from LearnWorlds',
+        message: error.message,
+        details: error.details || null
       },
-      {
-        status:
-          error.status ||
-          500
-      }
+      { status: error.status || 500 }
     );
   }
 }
