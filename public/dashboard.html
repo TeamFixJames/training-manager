@@ -379,6 +379,108 @@
 .report-engagement-detail-v37{display:block;font-size:8px;color:#8391a0;margin-top:4px;line-height:1.4}
 </style>
 
+
+<style id="reports-breakdown-v40-css">
+.report-breakdown-grid-v40{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-top:14px
+}
+.report-breakdown-card-v40{
+  border:1px solid var(--line);
+  border-radius:11px;
+  overflow:hidden;
+  background:#fff
+}
+.report-breakdown-head-v40{
+  padding:11px 13px;
+  background:#f8fafc;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px
+}
+.report-breakdown-head-v40 b{
+  font-size:11px;
+  color:#27445e
+}
+.report-breakdown-head-v40 span{
+  font-size:9px;
+  color:#7b8997
+}
+.report-breakdown-list-v40{
+  padding:4px 0
+}
+.report-breakdown-row-v40{
+  display:grid;
+  grid-template-columns:minmax(150px,1.7fr) repeat(3,minmax(78px,.7fr));
+  gap:8px;
+  align-items:center;
+  padding:9px 12px;
+  border-bottom:1px solid #edf0f3;
+  font-size:9px
+}
+.report-breakdown-row-v40:last-child{
+  border-bottom:0
+}
+.report-breakdown-row-v40.header{
+  background:#fcfdfe;
+  color:#718196;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  font-size:8px;
+  font-weight:800
+}
+.report-breakdown-name-v40 b{
+  display:block;
+  font-size:10px;
+  color:#263b4d
+}
+.report-breakdown-name-v40 span{
+  display:block;
+  color:#8190a0;
+  font-size:8px;
+  margin-top:2px
+}
+.report-mini-bar-v40{
+  height:4px;
+  background:#edf1f5;
+  border-radius:99px;
+  overflow:hidden;
+  margin-top:4px
+}
+.report-mini-bar-v40 i{
+  display:block;
+  height:100%;
+  background:#28577f;
+  border-radius:99px
+}
+.report-breakdown-empty-v40{
+  padding:22px;
+  color:#8492a0;
+  font-size:10px;
+  text-align:center
+}
+.report-breakdown-total-v40{
+  display:flex;
+  gap:14px;
+  flex-wrap:wrap;
+  padding:10px 12px;
+  border-top:1px solid var(--line);
+  background:#fbfcfd;
+  font-size:9px;
+  color:#667789
+}
+.report-breakdown-total-v40 b{
+  color:#29465f
+}
+@media(max-width:900px){
+  .report-breakdown-grid-v40{grid-template-columns:1fr}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2665,6 +2767,83 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       }
     }
   }
+  function summarizeBreakdownV40(rows,keyFn){
+    const map=new Map();
+
+    for(const row of rows){
+      if(row.category!=='Video')continue;
+
+      const key=keyFn(row);
+      if(!key)continue;
+
+      if(!map.has(key)){
+        map.set(key,{
+          name:key,
+          videos:0,
+          scheduledSeconds:0,
+          studySeconds:0
+        });
+      }
+
+      const item=map.get(key);
+      item.videos+=1;
+      item.scheduledSeconds+=Number(row.seconds||0);
+      item.studySeconds+=Number(row.studySeconds||0);
+    }
+
+    return [...map.values()].sort((a,b)=>
+      b.studySeconds-a.studySeconds ||
+      b.scheduledSeconds-a.scheduledSeconds ||
+      String(a.name).localeCompare(String(b.name))
+    );
+  }
+
+  function breakdownCardV40(title,subtitle,items){
+    if(!items.length){
+      return `<div class="report-breakdown-card-v40"><div class="report-breakdown-head-v40"><b>${eV36(title)}</b><span>${eV36(subtitle)}</span></div><div class="report-breakdown-empty-v40">No completed video activity in this report.</div></div>`;
+    }
+
+    const maxStudy=Math.max(1,...items.map(x=>Number(x.studySeconds||0)));
+    const totalVideos=items.reduce((n,x)=>n+x.videos,0);
+    const totalScheduled=items.reduce((n,x)=>n+x.scheduledSeconds,0);
+    const totalStudy=items.reduce((n,x)=>n+x.studySeconds,0);
+
+    return `<div class="report-breakdown-card-v40">
+      <div class="report-breakdown-head-v40">
+        <b>${eV36(title)}</b>
+        <span>${eV36(subtitle)}</span>
+      </div>
+
+      <div class="report-breakdown-list-v40">
+        <div class="report-breakdown-row-v40 header">
+          <div>Area</div>
+          <div>Videos</div>
+          <div>Scheduled</div>
+          <div>Study Time</div>
+        </div>
+
+        ${items.map(item=>{
+          const pct=Math.max(2,Math.round((Number(item.studySeconds||0)/maxStudy)*100));
+          return `<div class="report-breakdown-row-v40">
+            <div class="report-breakdown-name-v40">
+              <b>${eV36(item.name)}</b>
+              <div class="report-mini-bar-v40"><i style="width:${pct}%"></i></div>
+            </div>
+            <div>${item.videos}</div>
+            <div>${eV36(durationV36(item.scheduledSeconds))}</div>
+            <div>${eV36(durationV36(item.studySeconds))}</div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="report-breakdown-total-v40">
+        <span><b>${totalVideos}</b> completed videos</span>
+        <span><b>${eV36(durationV36(totalScheduled))}</b> scheduled</span>
+        <span><b>${eV36(durationV36(totalStudy))}</b> actual video study time</span>
+      </div>
+    </div>`;
+  }
+
   function renderActivityV36(){
     const start=document.getElementById('reportStartV36').value,end=document.getElementById('reportEndV36').value;
     if(!start||!end||start>end){document.getElementById('reportOutputV36').innerHTML='<div class="report-empty-v36">Choose a valid date range.</div>';return}
@@ -2675,6 +2854,10 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     const time=rows.reduce((n,x)=>n+x.seconds,0);
     const videoStudyTime=videos.reduce((n,x)=>n+Number(x.studySeconds||0),0);
     const active=new Set(rows.map(x=>x.employeeId)).size;
+
+    const pathBreakdown=summarizeBreakdownV40(rows,x=>x.path||'Other Training');
+    const sectionBreakdown=summarizeBreakdownV40(rows,x=>x.section||'Uncategorized');
+
     document.getElementById('reportOutputV36').innerHTML=`
       <div class="report-kpis-v36">
         <div class="report-kpi-v36"><b>${active}</b><span>Employees Active</span></div>
@@ -2685,6 +2868,11 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
         <div class="report-kpi-v36"><b>${support.length}</b><span>Support Tool Uses</span></div>
       </div>
       <div style="font-size:9px;color:#718196;margin:-6px 2px 12px;line-height:1.45"><b>Actual Video Study Time</b> comes from the training platform's accumulated video playback time. It can exceed the video's runtime when a video is watched more than once. For a date-range report, this is the current cumulative study time for the videos represented in the report, not a time-stamped breakdown of when every minute was watched.</div>
+      <div class="report-breakdown-grid-v40">
+        ${breakdownCardV40('Training Path Breakdown','Where completed video activity is occurring',pathBreakdown)}
+        ${breakdownCardV40('Section / Library Breakdown','Which content areas are receiving the most training time',sectionBreakdown)}
+      </div>
+
       <div class="report-section-v36"><div class="report-section-head-v36"><b>Completed Activity</b><span>${rows.length} records · ${start} to ${end}</span></div>
       ${rows.length?`<div style="overflow:auto"><table class="report-table-v36"><thead><tr><th>Date</th><th>Employee</th><th>Activity</th><th>Category</th><th>Path / Section</th><th>Runtime</th><th>Video Study Time</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${eV36(x.date)}</td><td><b>${eV36(x.employee)}</b></td><td>${eV36(x.title)}</td><td>${eV36(x.category)}</td><td>${eV36(x.path)}${x.section?`<span class="report-sub-v36">${eV36(x.section)}</span>`:''}</td><td>${eV36(x.runtime||'—')}</td><td>${x.category==='Video'?eV36(durationV36(x.studySeconds||0)):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="report-empty-v36">No matching activity for this period.</div>'}</div>`;
   }
@@ -2750,7 +2938,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     if(reportModeV36==='activity'){
       const start=document.getElementById('reportStartV36').value,end=document.getElementById('reportEndV36').value,type=document.getElementById('reportTypeV36')?.value||'all';
       let rows=allActivityV36(employeesV36(),start,end);if(type!=='all')rows=rows.filter(x=>x.category===type);
-      csvDownloadV36(`activity-report-${start}-to-${end}.csv`,[['Employee','Date','Activity','Category','Path','Section','Runtime','Video Study Time Seconds'],...rows.map(x=>[x.employee,x.date,x.title,x.category,x.path,x.section,x.runtime,x.category==='Video'?Number(x.studySeconds||0):''])]);
+      csvDownloadV36(`activity-report-${start}-to-${end}.csv`,[['Employee','Date','Activity','Category','Training Path','Section / Library','Runtime','Video Study Time Seconds'],...rows.map(x=>[x.employee,x.date,x.title,x.category,x.path,x.section,x.runtime,x.category==='Video'?Number(x.studySeconds||0):''])]);
     }else if(reportModeV36==='cert'){
       const rows=employeesV36().map(certSnapshotV36).filter(Boolean);
       csvDownloadV36('certification-progress-report.csv',[['Employee','Overall %','Videos Complete','Videos Required','Section Exams Passed','Section Exams Required','Pace Delta','Level 1','Level 2','Status','Reason'],...rows.map(x=>[x.e.name,x.pct,x.c.videoDone,x.c.videoTotal,x.c.examPassed,x.c.examTotal,x.pace.delta,x.l1,x.l2,x.status.label,x.status.reason])]);
