@@ -408,10 +408,7 @@ function buildSectionExamState(activities) {
   score,
   requiredScore: PASSING_SCORE,
 
-  passSource: 'completion_status',
-
-  lastSyncedAt:
-    new Date().toISOString()
+  passSource: 'completion_status'
 };
   });
 }
@@ -535,10 +532,7 @@ function calculateLevel1Readiness(
           passedSectionExamCount
       ),
 
-    passingScore: PASSING_SCORE,
-
-    lastCalculatedAt:
-      new Date().toISOString()
+    passingScore: PASSING_SCORE
   };
 }
 
