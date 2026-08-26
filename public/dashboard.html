@@ -481,6 +481,26 @@
 }
 </style>
 
+
+<style id="reports-trends-v41-css">
+.report-trend-chart-v41{border:1px solid var(--line);border-radius:11px;overflow:hidden;margin-top:12px;background:#fff}
+.report-trend-bars-v41{padding:14px 14px 10px;display:grid;grid-template-columns:repeat(var(--trend-weeks,8),minmax(48px,1fr));gap:8px;align-items:end;min-height:220px;overflow-x:auto}
+.report-trend-week-v41{min-width:48px;text-align:center;display:flex;flex-direction:column;justify-content:flex-end;height:190px}
+.report-trend-value-v41{font-size:9px;font-weight:800;color:#29465f;margin-bottom:5px}
+.report-trend-bar-wrap-v41{height:145px;display:flex;align-items:flex-end;justify-content:center}
+.report-trend-bar-v41{width:min(34px,72%);background:#28577f;border-radius:7px 7px 2px 2px;min-height:3px}
+.report-trend-label-v41{font-size:8px;color:#718196;margin-top:6px;white-space:nowrap}
+.report-trend-detail-v41{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:11px 13px;background:#f8fafc;border-top:1px solid var(--line)}
+.report-trend-detail-v41 div{text-align:center}.report-trend-detail-v41 b{display:block;font-size:11px;color:#27445e}.report-trend-detail-v41 span{font-size:8px;color:#8190a0;text-transform:uppercase}
+.report-consistency-v41{margin-top:12px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.report-consistency-row-v41{display:grid;grid-template-columns:minmax(150px,1.5fr) 90px 90px 110px minmax(170px,1.4fr);gap:9px;align-items:center;padding:9px 12px;border-bottom:1px solid #edf0f3;font-size:9px}
+.report-consistency-row-v41:last-child{border-bottom:0}.report-consistency-row-v41.header{background:#fcfdfe;color:#718196;text-transform:uppercase;letter-spacing:.04em;font-size:8px;font-weight:800}
+.report-consistency-name-v41 b{display:block;font-size:10px;color:#263b4d}.report-consistency-name-v41 span{display:block;color:#8190a0;font-size:8px;margin-top:2px}
+.report-consistency-track-v41{height:5px;background:#edf1f5;border-radius:99px;overflow:hidden}.report-consistency-track-v41 i{display:block;height:100%;background:#16803c;border-radius:99px}
+.report-trend-note-v41{font-size:9px;color:#718196;line-height:1.5;margin:10px 2px 0}
+@media(max-width:850px){.report-trend-detail-v41{grid-template-columns:repeat(2,1fr)}.report-consistency-row-v41{grid-template-columns:1fr 80px 80px}.report-consistency-row-v41>:nth-child(4),.report-consistency-row-v41>:nth-child(5){display:none}}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2684,6 +2704,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
           <button class="report-tab-v36 active" data-mode="activity">Activity Report</button>
           <button class="report-tab-v36" data-mode="cert">Certification & Progress</button>
           <button class="report-tab-v36" data-mode="action">Manager Action Report</button>
+          <button class="report-tab-v36" data-mode="trends">Training Trends</button>
         </div>
         <div class="report-controls-v36">
           <div class="date-control-v36"><label>Start Date</label><input id="reportStartV36" type="date" value="${start}"></div>
@@ -2705,6 +2726,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     const extra=document.getElementById('reportExtraFilterV36');
     if(reportModeV36==='activity')extra.innerHTML='<label>Activity Type</label><select id="reportTypeV36"><option value="all">All Activity</option><option value="Video">Videos</option><option value="Live">Live Training</option><option value="Support">Support Tools</option><option value="Training">Other Training</option></select>';
     else if(reportModeV36==='action')extra.innerHTML='<label>Status</label><select id="reportStatusV36"><option value="all">All Statuses</option><option value="action">Action Needed</option><option value="attention">Needs Attention</option><option value="good">On Track</option></select>';
+    else if(reportModeV36==='trends')extra.innerHTML='<label>Trend Range</label><select id="reportTrendWeeksV41"><option value="4">Last 4 Weeks</option><option value="8" selected>Last 8 Weeks</option><option value="12">Last 12 Weeks</option></select>';
     else extra.innerHTML='<label>Path</label><select id="reportPathV36"><option value="all">Certification Employees</option><option value="ready">Level 1 Ready</option><option value="passed1">Level 1 Passed</option><option value="certified">Certified</option></select>';
   }
   async function refreshReportTrainingDataV39(){
@@ -2779,6 +2801,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 
       if(reportModeV36==='activity')renderActivityV36();
       else if(reportModeV36==='cert')renderCertV36();
+      else if(reportModeV36==='trends')renderTrendsV41();
       else renderActionV36();
     }catch(error){
       console.warn('Report refresh encountered an error',error);
@@ -2786,6 +2809,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       // Still render with whatever current data is available.
       if(reportModeV36==='activity')renderActivityV36();
       else if(reportModeV36==='cert')renderCertV36();
+      else if(reportModeV36==='trends')renderTrendsV41();
       else renderActionV36();
     }finally{
       if(btn){
@@ -2903,6 +2927,130 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       <div class="report-section-v36"><div class="report-section-head-v36"><b>Completed Activity</b><span>${rows.length} records · ${start} to ${end}</span></div>
       ${rows.length?`<div style="overflow:auto"><table class="report-table-v36"><thead><tr><th>Date</th><th>Employee</th><th>Activity</th><th>Category</th><th>Path / Section</th><th>Runtime</th><th>Video Study Time</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${eV36(x.date)}</td><td><b>${eV36(x.employee)}</b></td><td>${eV36(x.title)}</td><td>${eV36(x.category)}</td><td>${eV36(x.path)}${x.section?`<span class="report-sub-v36">${eV36(x.section)}</span>`:''}</td><td>${eV36(x.runtime||'—')}</td><td>${x.category==='Video'?eV36(durationV36(x.studySeconds||0)):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="report-empty-v36">No matching activity for this period.</div>'}</div>`;
   }
+
+  function mondayV41(d){
+    const x=new Date(d);
+    x.setHours(12,0,0,0);
+    const day=(x.getDay()+6)%7;
+    x.setDate(x.getDate()-day);
+    return x;
+  }
+  function isoLocalV41(d){
+    const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function weekLabelV41(d){
+    return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(d);
+  }
+  function trendWeeksV41(count){
+    const current=mondayV41(new Date());
+    const weeks=[];
+    for(let i=count-1;i>=0;i--){
+      const start=new Date(current);
+      start.setDate(start.getDate()-(i*7));
+      const end=new Date(start);
+      end.setDate(end.getDate()+6);
+      weeks.push({start:isoLocalV41(start),end:isoLocalV41(end),label:weekLabelV41(start)});
+    }
+    return weeks;
+  }
+  function employeeTrendSummaryV41(e,weeks){
+    const first=weeks[0]?.start,last=weeks.at(-1)?.end;
+    const rows=first&&last?activityRowsV36(e,first,last):[];
+    const videoRows=rows.filter(x=>x.category==='Video');
+    const activeWeekSet=new Set();
+
+    for(const row of rows){
+      const wi=weeks.findIndex(w=>row.date>=w.start&&row.date<=w.end);
+      if(wi>=0)activeWeekSet.add(wi);
+    }
+
+    return{
+      employee:e,
+      videos:videoRows.length,
+      scheduledSeconds:videoRows.reduce((n,x)=>n+Number(x.seconds||0),0),
+      activeWeeks:activeWeekSet.size,
+      consistencyPct:weeks.length?Math.round((activeWeekSet.size/weeks.length)*100):0,
+      lastTraining:lastActivityV36(e)||''
+    };
+  }
+  function renderTrendsV41(){
+    const count=Math.max(4,Math.min(12,Number(document.getElementById('reportTrendWeeksV41')?.value||8)));
+    const weeks=trendWeeksV41(count);
+    const emps=employeesV36();
+    const start=weeks[0]?.start,end=weeks.at(-1)?.end;
+    const rows=allActivityV36(emps,start,end);
+
+    const weekly=weeks.map(w=>{
+      const wr=rows.filter(x=>x.date>=w.start&&x.date<=w.end);
+      const videos=wr.filter(x=>x.category==='Video');
+      return{
+        ...w,
+        videos:videos.length,
+        scheduledSeconds:videos.reduce((n,x)=>n+Number(x.seconds||0),0),
+        live:wr.filter(x=>x.category==='Live').length,
+        support:wr.filter(x=>x.category==='Support').length,
+        activeEmployees:new Set(wr.map(x=>String(x.employeeId))).size
+      };
+    });
+
+    const totalVideos=weekly.reduce((n,x)=>n+x.videos,0);
+    const scheduled=weekly.reduce((n,x)=>n+x.scheduledSeconds,0);
+    const weeksWithTraining=weekly.filter(x=>x.videos>0).length;
+    const avgVideos=weekly.length?Math.round((totalVideos/weekly.length)*10)/10:0;
+    const maxVideos=Math.max(1,...weekly.map(x=>x.videos));
+    const employeeSummaries=emps.map(e=>employeeTrendSummaryV41(e,weeks)).sort((a,b)=>
+      b.consistencyPct-a.consistencyPct || b.videos-a.videos || String(a.employee.name).localeCompare(String(b.employee.name))
+    );
+    const selectedAll=(document.getElementById('reportEmployeeV36')?.value||'all')==='all';
+
+    document.getElementById('reportOutputV36').innerHTML=`
+      <div class="report-kpis-v36">
+        <div class="report-kpi-v36"><b>${totalVideos}</b><span>Videos Completed</span></div>
+        <div class="report-kpi-v36"><b>${durationV36(scheduled)}</b><span>Scheduled Video Time</span></div>
+        <div class="report-kpi-v36"><b>${weeksWithTraining}/${weekly.length}</b><span>Weeks With Video Training</span></div>
+        <div class="report-kpi-v36"><b>${avgVideos}</b><span>Avg Videos / Week</span></div>
+        <div class="report-kpi-v36"><b>${Math.max(...weekly.map(x=>x.activeEmployees),0)}</b><span>Peak Active Employees</span></div>
+      </div>
+
+      <div class="report-trend-chart-v41">
+        <div class="report-section-head-v36"><b>Weekly Video Completion Trend</b><span>${start} to ${end}</span></div>
+        <div class="report-trend-bars-v41" style="--trend-weeks:${weekly.length}">
+          ${weekly.map(w=>{
+            const pct=Math.max(w.videos?4:0,Math.round((w.videos/maxVideos)*100));
+            return `<div class="report-trend-week-v41" title="${w.videos} completed videos · ${durationV36(w.scheduledSeconds)} scheduled">
+              <div class="report-trend-value-v41">${w.videos}</div>
+              <div class="report-trend-bar-wrap-v41"><div class="report-trend-bar-v41" style="height:${pct}%"></div></div>
+              <div class="report-trend-label-v41">${eV36(w.label)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="report-trend-detail-v41">
+          <div><b>${weekly.reduce((n,x)=>n+x.live,0)}</b><span>Live Activities</span></div>
+          <div><b>${weekly.reduce((n,x)=>n+x.support,0)}</b><span>Support Uses</span></div>
+          <div><b>${weekly.filter(x=>x.activeEmployees>0).length}</b><span>Active Weeks</span></div>
+          <div><b>${Math.max(...weekly.map(x=>x.videos),0)}</b><span>Best Week · Videos</span></div>
+          <div><b>${durationV36(Math.max(...weekly.map(x=>x.scheduledSeconds),0))}</b><span>Best Week · Scheduled Time</span></div>
+        </div>
+      </div>
+
+      <div class="report-consistency-v41">
+        <div class="report-section-head-v36"><b>${selectedAll?'Employee Training Consistency':'Training Consistency'}</b><span>Weeks with any recorded training activity</span></div>
+        <div class="report-consistency-row-v41 header"><div>Employee</div><div>Active Weeks</div><div>Videos</div><div>Scheduled Time</div><div>Consistency</div></div>
+        ${employeeSummaries.length?employeeSummaries.map(x=>`<div class="report-consistency-row-v41 clickable" data-report-emp="${eV36(x.employee.id)}">
+          <div class="report-consistency-name-v41"><b>${eV36(x.employee.name||'Employee')}</b><span>${x.lastTraining?'Last training '+eV36(x.lastTraining):'No training recorded'}</span></div>
+          <div>${x.activeWeeks}/${weeks.length}</div>
+          <div>${x.videos}</div>
+          <div>${eV36(durationV36(x.scheduledSeconds))}</div>
+          <div><b>${x.consistencyPct}%</b><div class="report-consistency-track-v41"><i style="width:${x.consistencyPct}%"></i></div></div>
+        </div>`).join(''):'<div class="report-empty-v36">No employees match this trend report.</div>'}
+      </div>
+
+      <div class="report-trend-note-v41"><b>About trend data:</b> Weekly trends are based on dated training completions and engagement records, which can be placed accurately on a timeline. Actual Video Study Time is intentionally not charted by week because the training platform currently provides a cumulative study-time value for each video rather than a historical minute-by-minute timeline. Historical study-time trends can be added once snapshot tracking is enabled.</div>`;
+
+    bindReportEmployeesV36();
+  }
+
   function renderCertV36(){
     const filter=document.getElementById('reportPathV36')?.value||'all';
     let rows=employeesV36().map(certSnapshotV36).filter(Boolean);
@@ -2969,6 +3117,15 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     }else if(reportModeV36==='cert'){
       const rows=employeesV36().map(certSnapshotV36).filter(Boolean);
       csvDownloadV36('certification-progress-report.csv',[['Employee','Overall %','Videos Complete','Videos Required','Section Exams Passed','Section Exams Required','Pace Delta','Level 1','Level 2','Status','Reason'],...rows.map(x=>[x.e.name,x.pct,x.c.videoDone,x.c.videoTotal,x.c.examPassed,x.c.examTotal,x.pace.delta,x.l1,x.l2,x.status.label,x.status.reason])]);
+    }else if(reportModeV36==='trends'){
+      const count=Math.max(4,Math.min(12,Number(document.getElementById('reportTrendWeeksV41')?.value||8)));
+      const weeks=trendWeeksV41(count),start=weeks[0]?.start,end=weeks.at(-1)?.end;
+      const rows=allActivityV36(employeesV36(),start,end);
+      const weekly=weeks.map(w=>{
+        const wr=rows.filter(x=>x.date>=w.start&&x.date<=w.end),videos=wr.filter(x=>x.category==='Video');
+        return [w.start,w.end,videos.length,videos.reduce((n,x)=>n+Number(x.seconds||0),0),wr.filter(x=>x.category==='Live').length,wr.filter(x=>x.category==='Support').length,new Set(wr.map(x=>String(x.employeeId))).size];
+      });
+      csvDownloadV36(`training-trends-${count}-weeks.csv`,[['Week Start','Week End','Videos Completed','Scheduled Video Time Seconds','Live Activities','Support Uses','Active Employees'],...weekly]);
     }else{
       const rows=employeesV36().map(e=>{const status=employeeAttention(e),engagement=engagementStatusV37(e),p=currentPathV36(e);return[e.name,status.label,engagement.label,p?pathName(p.type):'No path',engagement.lastLogin||'',engagement.lastTraining||'',status.reason,engagement.reason,recommendedActionV36(e,status,engagement)]});
       csvDownloadV36('manager-action-report.csv',[['Employee','Training Status','Engagement Status','Current Path','Last Login','Last Training','Training Reason','Engagement Reason','Recommended Next Step'],...rows]);
