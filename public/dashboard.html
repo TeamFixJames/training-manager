@@ -527,6 +527,21 @@
 .display-zone-v42{display:flex;flex-direction:column;gap:2px;min-width:118px}.display-zone-v42 span{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#718196;font-weight:800}.display-zone-v42 select{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 8px;font-size:11px;color:#182230}
 .group-call-sync-v42{margin:0 0 14px;border:1px solid #cbdbea;background:#f6faff;border-radius:11px;padding:11px 13px;font-size:10px;color:#52667a;line-height:1.45}.group-call-sync-v42 b{color:#234f78}.group-call-sync-v42.attention{border-color:#f1c78d;background:#fff9ef;color:#8a5b1d}.group-call-sync-v42.issue{border-color:#efb8b3;background:#fff5f4;color:#9a3f3f}.group-call-time-v42{font-weight:800;color:#294a68}.group-call-central-v42{display:block;font-size:8px;color:#8391a0;margin-top:2px}.auto-lock-v42{font-size:9px;color:#7a8794;font-weight:800}
 </style>
+
+<style id="training-stage-v44-css">
+.training-stage-v44{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+.training-stage-main-v44{display:grid;grid-template-columns:minmax(190px,.9fr) minmax(260px,1.35fr) minmax(260px,1.35fr) auto;gap:16px;align-items:center;padding:15px 17px}
+.training-stage-label-v44{font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#7b8997;margin-bottom:5px}
+.training-stage-name-v44{font-size:17px;font-weight:850;color:#183b5b;line-height:1.2}
+.training-stage-pill-v44{display:inline-flex;margin-top:7px;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:900;background:#eef3f8;color:#355b7a}
+.training-stage-pill-v44.ready{background:#eef8f1;color:#24633f}.training-stage-pill-v44.action{background:#fff4e8;color:#9a591d}.training-stage-pill-v44.complete{background:#eaf7ee;color:#24633f}.training-stage-pill-v44.ongoing{background:#eef6ff;color:#185fae}
+.training-stage-copy-v44 b,.training-stage-next-v44 b{display:block;font-size:10px;color:#344054;margin-bottom:4px}.training-stage-copy-v44 span,.training-stage-next-v44 span{display:block;font-size:10px;color:#667789;line-height:1.5}
+.training-stage-next-v44{padding-left:16px;border-left:1px solid var(--line)}
+.training-stage-action-v44{white-space:nowrap}
+.training-stage-foot-v44{border-top:1px solid var(--line);background:#fafbfc;padding:9px 17px;font-size:9px;color:#7a8998;line-height:1.45}
+.stage-inline-v44{display:inline-block;margin-left:5px;padding:2px 6px;border-radius:999px;background:#eef3f8;color:#355b7a;font-size:8px;font-weight:800;vertical-align:1px}
+@media(max-width:900px){.training-stage-main-v44{grid-template-columns:1fr}.training-stage-next-v44{padding-left:0;border-left:0;border-top:1px solid var(--line);padding-top:12px}.training-stage-action-v44{justify-self:start}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -821,6 +836,110 @@ function certificationTeamStatus(e,p){
   const l2Attempted=l2Exam.attempted===true;
   return{videoTotal,videoDone,examTotal,examPassed,videosReady,examsReady,level1Ready,l1Passed,l2Passed,l1Attempted,l2Attempted};
 }
+function trainingStageV44(e){
+  const paths=Array.isArray(e?.paths)?e.paths:[];
+  const certPath=paths.find(x=>x?.type==='cert')||null;
+  const ongoingPath=paths.find(x=>x?.type==='ongoing')||null;
+
+  if(!certPath){
+    return{
+      key:'getting-started',
+      label:'Getting Started',
+      tone:'action',
+      summary:'Path to Certification has not been set up yet.',
+      next:'Choose the employee’s start date and daily training time to build their Path to Certification schedule.',
+      actionLabel:'Set Up Certification',
+      action:'cert'
+    };
+  }
+
+  const c=certificationTeamStatus(e,certPath);
+  const pace=certPaceSummary(certPath);
+  const nextVideo=(certPath.events||[]).filter(x=>(x.kind||'video')==='video'&&!x.completed).slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')))[0]||null;
+
+  if(c.l2Passed){
+    if(ongoingPath){
+      return{
+        key:'ongoing',
+        label:'Ongoing Development',
+        tone:'ongoing',
+        summary:'Certification is complete and the employee is continuing development through Ongoing Training.',
+        next:'Maintain consistent weekly training, Weekly Group Call participation, and manager coaching.',
+        actionLabel:'',
+        action:''
+      };
+    }
+    return{
+      key:'certified',
+      label:'Certified',
+      tone:'complete',
+      summary:'Level 2 Certification is complete.',
+      next:'Set up Ongoing Training so development continues after certification.',
+      actionLabel:'Set Up Ongoing Training',
+      action:'ongoing'
+    };
+  }
+
+  if(c.l1Passed){
+    return{
+      key:'level2-ready',
+      label:'Ready for Level 2 Certification',
+      tone:'ready',
+      summary:'Level 1 Certification has been passed and Level 2 is available.',
+      next:c.l2Attempted?'Review the prior attempt, coach as needed, and prepare for another Level 2 Certification attempt.':'Complete the Level 2 Certification exam.',
+      actionLabel:'',
+      action:''
+    };
+  }
+
+  if(c.level1Ready){
+    return{
+      key:'level1-ready',
+      label:'Ready for Level 1 Certification',
+      tone:'ready',
+      summary:'All required certification videos and section exams are complete.',
+      next:c.l1Attempted?'Review the prior attempt, coach as needed, and prepare for another Level 1 Certification attempt.':'Complete the Level 1 Certification exam.',
+      actionLabel:'',
+      action:''
+    };
+  }
+
+  if(c.videosReady&&!c.examsReady){
+    const remaining=Math.max(0,c.examTotal-c.examPassed);
+    return{
+      key:'section-exams',
+      label:'Certification Training',
+      tone:'action',
+      summary:'All certification videos are complete; required section exams are still outstanding.',
+      next:`Pass ${remaining} remaining section exam${remaining===1?'':'s'} to unlock Level 1 Certification.`,
+      actionLabel:'',
+      action:''
+    };
+  }
+
+  const remainingVideos=Math.max(0,c.videoTotal-c.videoDone);
+  let next=`Continue the guided certification schedule${nextVideo?.title?': '+nextVideo.title:'.'}`;
+  if(pace.delta<0)next=`Complete the next scheduled certification video and recover ${Math.abs(pace.delta)} video${Math.abs(pace.delta)===1?'':'s'} of missed pace.`;
+  return{
+    key:'cert-training',
+    label:'Path to Certification Training',
+    tone:pace.delta<0?'action':'',
+    summary:`${c.videoDone} of ${c.videoTotal} videos complete · ${c.examPassed} of ${c.examTotal} section exams passed.`,
+    next:remainingVideos?next:'Complete the remaining certification requirements.',
+    actionLabel:'',
+    action:''
+  };
+}
+function trainingStageCardV44(e){
+  const stage=trainingStageV44(e);
+  const button=stage.actionLabel?`<button class="btn primary training-stage-action-v44" type="button" data-stage-action-v44="${esc(stage.action)}">${esc(stage.actionLabel)}</button>`:'';
+  return `<div class="training-stage-v44"><div class="training-stage-main-v44"><div><div class="training-stage-label-v44">Current Training Stage</div><div class="training-stage-name-v44">${esc(stage.label)}</div><span class="training-stage-pill-v44 ${esc(stage.tone||'')}">Automatically determined</span></div><div class="training-stage-copy-v44"><b>Where they are</b><span>${esc(stage.summary)}</span></div><div class="training-stage-next-v44"><b>Next Step</b><span>${esc(stage.next)}</span></div>${button}</div><div class="training-stage-foot-v44">This stage updates automatically as training activity and certification results are synced.</div></div>`;
+}
+function bindTrainingStageV44(){
+  document.querySelectorAll('[data-stage-action-v44]').forEach(btn=>btn.onclick=()=>{
+    if(btn.dataset.stageActionV44==='cert'||btn.dataset.stageActionV44==='ongoing')openPathModal();
+  });
+}
 function employeeAttention(e){
   const p=activePath(e);
   if(!p)return{level:'attention',label:'Needs Attention',reason:'No training path assigned'};
@@ -923,14 +1042,14 @@ function renderAttentionCenterV43(rows,filter='all'){
   const actionCount=needs.filter(x=>x.attention.level==='action').length;
   const attentionCount=needs.filter(x=>x.attention.level==='attention').length;
   const shown=filter==='all'?needs:needs.filter(x=>x.attention.level===filter);
-  return `<div class="attention-center-v43"><div class="attention-center-head-v43"><div><h3>Manager Attention Center <span class="attention-count-v43">${needs.length}</span></h3><p>Only employees with a current training or engagement issue appear here. Most urgent items are shown first.</p></div><div class="attention-filter-v43"><button class="${filter==='all'?'active':''}" data-attention-filter="all">All ${needs.length}</button><button class="${filter==='action'?'active':''}" data-attention-filter="action">Action Needed ${actionCount}</button><button class="${filter==='attention'?'active':''}" data-attention-filter="attention">Needs Attention ${attentionCount}</button></div></div><div>${shown.length?shown.map(({e,attention})=>`<div class="attention-item-v43" data-attention-id="${e.id}"><span class="attention-mark ${attention.level}"></span><span class="attention-person-v43"><b>${esc(e.name)}</b><small>${attention.p?esc(pathName(attention.p.type)):'Certification setup needed'}</small></span><span class="attention-why-v43"><b>${esc(attention.label)}</b><small>${esc(attention.reason)}</small></span><span class="attention-next-v43"><b>Recommended next step</b><small>${esc(attention.next)}</small></span><span class="team-open">View ›</span></div>`).join(''):'<div class="attention-empty-v43">No employees match this filter. Your team is clear in this category.</div>'}</div></div>`;
+  return `<div class="attention-center-v43"><div class="attention-center-head-v43"><div><h3>Manager Attention Center <span class="attention-count-v43">${needs.length}</span></h3><p>Only employees with a current training or engagement issue appear here. Most urgent items are shown first.</p></div><div class="attention-filter-v43"><button class="${filter==='all'?'active':''}" data-attention-filter="all">All ${needs.length}</button><button class="${filter==='action'?'active':''}" data-attention-filter="action">Action Needed ${actionCount}</button><button class="${filter==='attention'?'active':''}" data-attention-filter="attention">Needs Attention ${attentionCount}</button></div></div><div>${shown.length?shown.map(({e,attention})=>`<div class="attention-item-v43" data-attention-id="${e.id}"><span class="attention-mark ${attention.level}"></span><span class="attention-person-v43"><b>${esc(e.name)}</b><small>${esc(trainingStageV44(e).label)}</small></span><span class="attention-why-v43"><b>${esc(attention.label)}</b><small>${esc(attention.reason)}</small></span><span class="attention-next-v43"><b>Recommended next step</b><small>${esc(attention.next)}</small></span><span class="team-open">View ›</span></div>`).join(''):'<div class="attention-empty-v43">No employees match this filter. Your team is clear in this category.</div>'}</div></div>`;
 }
 function renderTeamOverview(){
   renderRoster();$('#topActions').style.display='none';$('#topTitle').textContent='Team Overview';$('#topSub').textContent='See who is on track and where manager attention is needed.';
   const rows=db.employees.map(e=>({e,status:employeeAttention(e),attention:managerAttentionItemV43(e),p:activePath(e)})).sort((a,b)=>({action:0,attention:1,good:2}[a.attention.level]-{action:0,attention:1,good:2}[b.attention.level]));
   const good=rows.filter(x=>x.attention.level==='good').length,att=rows.filter(x=>x.attention.level==='attention').length,action=rows.filter(x=>x.attention.level==='action').length;
   const filter=window.__attentionFilterV43||'all';
-  $('#content').innerHTML=`<div class="team-summary"><div class="team-summary-card"><label>Employees</label><strong>${rows.length}</strong><span>On your training roster</span></div><div class="team-summary-card good"><label>On Track</label><strong>${good}</strong><span>No current manager action</span></div><div class="team-summary-card attention"><label>Needs Attention</label><strong>${att}</strong><span>Manager follow-up recommended</span></div><div class="team-summary-card action"><label>Action Needed</label><strong>${action}</strong><span>Higher-priority follow-up</span></div></div>${renderAttentionCenterV43(rows,filter)}<div class="team-panel"><div class="team-panel-head"><div><h3>Full Team Status</h3><p>Everyone on the roster, including employees who are currently on track.</p></div></div><div class="team-list">${rows.map(({e,attention,p})=>{const c=p?.type==='ongoing'?ongoingConsistency(e,p):null;const cert=p?.type==='cert'?certificationTeamStatus(e,p):null;return`<button class="team-employee-row" data-team-id="${e.id}"><span class="attention-mark ${attention.level}"></span><span class="team-person"><b>${esc(e.name)}</b><small>${p?esc(pathName(p.type)):'No training path'}${c?' · '+c.activeWeeks+'/8 weeks active':''}${cert?' · '+cert.videoDone+'/'+cert.videoTotal+' videos · '+cert.examPassed+'/'+cert.examTotal+' exams':''}</small></span><span class="team-reason"><b>${esc(attention.label)}</b><small>${esc(attention.reason)}</small></span><span class="team-open">View ›</span></button>`}).join('')||'<div class="activity-empty">Add employees to begin monitoring team training.</div>'}</div></div>`;
+  $('#content').innerHTML=`<div class="team-summary"><div class="team-summary-card"><label>Employees</label><strong>${rows.length}</strong><span>On your training roster</span></div><div class="team-summary-card good"><label>On Track</label><strong>${good}</strong><span>No current manager action</span></div><div class="team-summary-card attention"><label>Needs Attention</label><strong>${att}</strong><span>Manager follow-up recommended</span></div><div class="team-summary-card action"><label>Action Needed</label><strong>${action}</strong><span>Higher-priority follow-up</span></div></div>${renderAttentionCenterV43(rows,filter)}<div class="team-panel"><div class="team-panel-head"><div><h3>Full Team Status</h3><p>Everyone on the roster, including employees who are currently on track.</p></div></div><div class="team-list">${rows.map(({e,attention,p})=>{const c=p?.type==='ongoing'?ongoingConsistency(e,p):null;const cert=p?.type==='cert'?certificationTeamStatus(e,p):null;return`<button class="team-employee-row" data-team-id="${e.id}"><span class="attention-mark ${attention.level}"></span><span class="team-person"><b>${esc(e.name)}</b><small>${esc(trainingStageV44(e).label)}${c?' · '+c.activeWeeks+'/8 weeks active':''}${cert?' · '+cert.videoDone+'/'+cert.videoTotal+' videos · '+cert.examPassed+'/'+cert.examTotal+' exams':''}</small></span><span class="team-reason"><b>${esc(attention.label)}</b><small>${esc(attention.reason)}</small></span><span class="team-open">View ›</span></button>`}).join('')||'<div class="activity-empty">Add employees to begin monitoring team training.</div>'}</div></div>`;
   $$('.team-employee-row,.attention-item-v43').forEach(b=>b.onclick=()=>{setDashboardView('employee');db.activeId=b.dataset.teamId||b.dataset.attentionId;persist();renderAll()});
   $$('[data-attention-filter]').forEach(b=>b.onclick=()=>{window.__attentionFilterV43=b.dataset.attentionFilter;renderTeamOverview()});
 }
@@ -1097,8 +1216,8 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
      </div>
    </div>`})():'';
  const suppCopy=p.type==='ongoing'?'Add the employee’s weekly training activities. These items build an ongoing engagement history and never create a finish date.':'Add live training alongside the employee’s videos. These items appear in the weekly schedule but <b>do not change</b> the 1-video-per-business-day certification pace.';
- $('#content').innerHTML=`${pathTabs(e)}${banner}${trainingTimeSetting}${groupCallAssignmentCopyV42(e)}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Weekly Group Call:</b> synced automatically from the employee’s Sales Fix assignment and remains active during ongoing training. &nbsp; <b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics.':'<b>Weekly Group Call:</b> synced automatically from the employee’s Sales Fix assignment and continues across every training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>`;
- $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;const timeBtn=$('#savePathDailyTimeV34');if(timeBtn)timeBtn.onclick=()=>{const input=$('#pathDailyTimeV34');if(input?.value)updatePathDailyTrainingTime(input.value)};bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;const addGroupCallBtn=$('#addGroupCallBtn');if(addGroupCallBtn)addGroupCallBtn.onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;
+ $('#content').innerHTML=`${pathTabs(e)}${trainingStageCardV44(e)}${banner}${trainingTimeSetting}${groupCallAssignmentCopyV42(e)}${overview}${progressBlock}${certMilestones}${recentActivityPanel(e)}${coachingPanel(e)}<div class="panel"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Use this as an ongoing weekly training log. Add library videos and live/practice activities as the employee continues developing.':'Schedule is grouped by week. Section appears beside each certification video. Supplemental live items never change the video pace.'}</p></div><div class="path-actions">${status}</div></div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Supplemental Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Weekly Group Call:</b> synced automatically from the employee’s Sales Fix assignment and remains active during ongoing training. &nbsp; <b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics.':'<b>Weekly Group Call:</b> synced automatically from the employee’s Sales Fix assignment and continues across every training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>`;
+ $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindTrainingStageV44();const timeBtn=$('#savePathDailyTimeV34');if(timeBtn)timeBtn.onclick=()=>{const input=$('#pathDailyTimeV34');if(input?.value)updatePathDailyTrainingTime(input.value)};bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;const addGroupCallBtn=$('#addGroupCallBtn');if(addGroupCallBtn)addGroupCallBtn.onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;
 }
 function scheduleTable(p){const items=scheduleItems(p);let rows='',lastWeek='',weekIndex=0;for(const ev of items){const wk=weekKey(ev.date);if(wk!==lastWeek){lastWeek=wk;weekIndex++;rows+=`<tr class="week-row"><td colspan="11">${weekLabel(ev.date,weekIndex)}<span>${fmt(mondayOf(ev.date))}</span></td></tr>`}const supplemental=ev.kind!=='video';const completedCell=ev.kind==='call'?`<input class="check ev-call-complete" type="checkbox" ${ev.completed?'checked':''}>`:(ev.generated?'—':`<input class="check ev-complete" type="checkbox" ${ev.completed?'checked':''}>`);rows+=`<tr class="${supplemental?'supplemental-row':''}" data-event="${ev.id}" data-kind="${ev.kind}" data-config="${ev.configId||''}" data-date="${ev.date}"><td>${ev.generated?esc(fmt(ev.date)):`<input class="ev-date" type="date" value="${esc(ev.date)}">`}</td><td class="video-title">${esc(ev.title)}</td><td class="section-name">${esc(ev.section||'—')}</td><td><span class="type-pill ${typeClass(ev.kind)}">${typeLabel(ev.kind)}</span></td><td class="runtime">${esc(ev.duration||'—')}</td><td>${ev.kind==='call'&&ev.autoManaged?groupCallDisplayTimeV42(ev):esc(ev.time||'—')}</td><td class="check-cell">${completedCell}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-fix" type="checkbox" ${ev.fixMyCall?'checked':''}>`}</td><td class="check-cell">${ev.generated?'—':`<input class="check ev-trainer" type="checkbox" ${ev.callTrainer?'checked':''}>`}</td><td>${ev.generated?(ev.recurringCustom?'Recurring custom item':'Recurring call'):`<input class="notes ev-notes" type="text" placeholder="Add a note..." value="${esc(ev.notes)}">`}</td><td>${ev.generated?(ev.recurringCustom?`<button class="icon ev-delete-custom-rec" data-config="${ev.configId}" title="Remove recurring custom training item">×</button>`:(ev.autoManaged?`<span class="auto-lock-v42" title="Synced from Sales Fix">Synced</span>`:`<button class="icon ev-delete-call" data-config="${ev.configId}" title="Remove recurring weekly call">×</button>`)):`<button class="icon ev-delete" title="Delete">×</button>`}</td></tr>`}return`<table class="schedule"><thead><tr><th>Date</th><th>Training / Video</th><th>Section</th><th>Type</th><th>Runtime</th><th>Time</th><th>Completed</th><th>Fix My Call</th><th>Call a Trainer</th><th>Notes</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="11" style="padding:24px;color:#98a2b3">No training scheduled yet.</td></tr>'}</tbody></table>`}
 function bindSchedule(e,p){$$('tr[data-event]').forEach(tr=>{const kind=tr.dataset.kind;const customRecBtn=tr.querySelector('.ev-delete-custom-rec');if(customRecBtn){customRecBtn.onclick=()=>{const id=customRecBtn.dataset.config;if(confirm('Remove this recurring custom training item from the entire training path?')){p.recurringCustoms=p.recurringCustoms.filter(x=>x.id!==id);persist();renderAll();showToast('Recurring custom training removed')}};return}if(kind==='call'){const cfg=p.weeklyCalls.find(x=>x.id===tr.dataset.config);const c=tr.querySelector('.ev-call-complete');if(c&&cfg)c.onchange=x=>{cfg.completedDates=Array.isArray(cfg.completedDates)?cfg.completedDates:[];const day=tr.dataset.date;if(x.target.checked){if(!cfg.completedDates.includes(day))cfg.completedDates.push(day)}else{cfg.completedDates=cfg.completedDates.filter(d=>d!==day)}persist();renderAll();showToast(x.target.checked?'Weekly Group Call marked complete':'Weekly Group Call marked incomplete')};const btn=tr.querySelector('.ev-delete-call');if(btn)btn.onclick=()=>{const id=btn.dataset.config;if(confirm('Remove this Weekly Group Call from the entire training path?')){p.weeklyCalls=p.weeklyCalls.filter(x=>x.id!==id);persist();renderAll();showToast('Weekly Group Call removed')}};return}let collection=kind==='webinar'?p.webinars:p.events;const ev=collection.find(x=>x.id===tr.dataset.event);if(!ev)return;const dateInput=tr.querySelector('.ev-date');if(dateInput)dateInput.onchange=x=>{if(!x.target.value)return;ev.date=x.target.value;if(p.type==='cert'&&kind==='video'){reflowCertFrom(p,ev.id);persist();renderAll();showToast('Video date updated · remaining videos rescheduled')}else{persist();renderAll();showToast('Date updated without changing video pace')}};const c=tr.querySelector('.ev-complete');if(c)c.onchange=x=>{ev.completed=x.target.checked;persist();renderAll()};const f=tr.querySelector('.ev-fix');if(f)f.onchange=x=>{ev.fixMyCall=x.target.checked;persist();renderRoster();showToast('Fix My Call updated')};const t=tr.querySelector('.ev-trainer');if(t)t.onchange=x=>{ev.callTrainer=x.target.checked;persist();renderRoster();showToast('Call a Trainer updated')};const n=tr.querySelector('.ev-notes');if(n)n.oninput=x=>{ev.notes=x.target.value;persist()};const d=tr.querySelector('.ev-delete');if(d)d.onclick=()=>{if(kind==='webinar')p.webinars=p.webinars.filter(x=>x.id!==ev.id);else p.events=p.events.filter(x=>x.id!==ev.id);persist();renderAll()}})}
