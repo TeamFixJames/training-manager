@@ -661,7 +661,7 @@ function calculateLevel1Readiness(
       PASSING_SCORE
   };
 }
-
+\nasync function upsertDailySnapshot({\n  managerEmail,\n  employeeId,\n  activities,\n  level1,\n  level2\n}) {\n  /*\n   * LearnWorlds time_on_unit is cumulative.\n   * Sum video activities only so PDFs, exams,\n   * ebooks, and other activity types do not\n   * inflate Training Manager study-time trends.\n   */\n  const videoStudySeconds =\n    activities\n      .filter(\n        (activity) =>\n          activity?.type === 'video'\n      )\n      .reduce(\n        (total, activity) =>\n          total +\n          Math.max(\n            0,\n            Number(\n              activity?.timeSpentSeconds || 0\n            )\n          ),\n        0\n      );\n\n  /*\n   * Certification metrics are meaningful only\n   * when the employee actually has a Path to\n   * Certification. requiredVideoCount will be 0\n   * when no Certification path exists.\n   */\n  const hasCertificationPath =\n    Number(\n      level1?.requiredVideoCount || 0\n    ) > 0;\n\n  const certificationVideoComplete =\n    hasCertificationPath\n      ? Number(\n          level1?.completedVideoCount || 0\n        )\n      : 0;\n\n  const certificationVideoTotal =\n    hasCertificationPath\n      ? Number(\n          level1?.requiredVideoCount || 0\n        )\n      : 0;\n\n  const sectionExamsPassed =\n    hasCertificationPath\n      ? Number(\n          level1?.passedSectionExamCount || 0\n        )\n      : 0;\n\n  const sectionExamsTotal =\n    hasCertificationPath\n      ? Number(\n          level1?.requiredSectionExamCount || 0\n        )\n      : 0;\n\n  const totalRequirements =\n    certificationVideoTotal +\n    sectionExamsTotal;\n\n  const completedRequirements =\n    certificationVideoComplete +\n    sectionExamsPassed;\n\n  const certificationPercent =\n    totalRequirements > 0\n      ? Number(\n          (\n            (completedRequirements /\n              totalRequirements) *\n            100\n          ).toFixed(2)\n        )\n      : 0;\n\n  await db.query(\n    `\n      INSERT INTO training_manager_snapshots (\n        manager_email,\n        employee_lw_id,\n        snapshot_date,\n        video_study_seconds,\n        certification_video_complete,\n        certification_video_total,\n        section_exams_passed,\n        section_exams_total,\n        certification_percent,\n        level1_passed,\n        level2_passed,\n        captured_at\n      )\n      VALUES (\n        $1,\n        $2,\n        CURRENT_DATE,\n        $3,\n        $4,\n        $5,\n        $6,\n        $7,\n        $8,\n        $9,\n        $10,\n        NOW()\n      )\n      ON CONFLICT (\n        manager_email,\n        employee_lw_id,\n        snapshot_date\n      )\n      DO UPDATE SET\n        video_study_seconds =\n          EXCLUDED.video_study_seconds,\n        certification_video_complete =\n          EXCLUDED.certification_video_complete,\n        certification_video_total =\n          EXCLUDED.certification_video_total,\n        section_exams_passed =\n          EXCLUDED.section_exams_passed,\n        section_exams_total =\n          EXCLUDED.section_exams_total,\n        certification_percent =\n          EXCLUDED.certification_percent,\n        level1_passed =\n          EXCLUDED.level1_passed,\n        level2_passed =\n          EXCLUDED.level2_passed,\n        captured_at = NOW()\n    `,\n    [\n      managerEmail,\n      employeeId,\n      Math.round(videoStudySeconds),\n      certificationVideoComplete,\n      certificationVideoTotal,\n      sectionExamsPassed,\n      sectionExamsTotal,\n      certificationPercent,\n      level1?.passed === true,\n      level2?.passed === true\n    ]\n  );\n\n  return {\n    videoStudySeconds:\n      Math.round(videoStudySeconds),\n    certificationVideoComplete,\n    certificationVideoTotal,\n    sectionExamsPassed,\n    sectionExamsTotal,\n    certificationPercent,\n    level1Passed:\n      level1?.passed === true,\n    level2Passed:\n      level2?.passed === true\n  };\n}\n
 export async function POST(
   request
 ) {
@@ -832,8 +832,6 @@ export async function POST(
         if (!activity) {
           continue;
         }
-
-        matchedVideos += 1;
 
         matchedVideos += 1;
 
@@ -1029,6 +1027,45 @@ if (
 
     /*
      * ----------------------------
+     * DAILY REPORTING SNAPSHOT
+     * ----------------------------
+     *
+     * One row per employee per day. Repeated
+     * syncs today update the same row because
+     * training_manager_snapshots has a unique
+     * employee/date constraint.
+     */
+    let snapshot = null;
+    let snapshotSaved = false;
+
+    try {
+      snapshot =
+        await upsertDailySnapshot({
+          managerEmail,
+          employeeId,
+          activities,
+          level1:
+            nextCertification.level1,
+          level2:
+            nextCertification.level2
+        });
+
+      snapshotSaved = true;
+    } catch (snapshotError) {
+      /*
+       * Snapshot history should not prevent a
+       * normal Training Manager progress sync
+       * from succeeding. Log the problem and
+       * expose snapshotSaved=false for testing.
+       */
+      console.error(
+        'Training snapshot upsert failed:',
+        snapshotError
+      );
+    }
+
+    /*
+     * ----------------------------
      * SAVE UPDATED STATE
      * ----------------------------
      */
@@ -1075,6 +1112,9 @@ if (
 
         checkedAt,
 
+        snapshotSaved,
+        snapshot,
+
         state:
           updateResult.rows[0]
             .state,
@@ -1102,6 +1142,9 @@ if (
         nextCertification.level2,
 
       checkedAt,
+
+      snapshotSaved,
+      snapshot,
 
       state
     });
