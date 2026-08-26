@@ -834,12 +834,55 @@ async function upsertDailySnapshot({
   };
 }
 
-export async function POST(
-  request
-) {
+export async function POST(request) {
   try {
-    const managerEmail =
-      await getAuthenticatedManager();
+    /*
+     * Read the request body first because an
+     * automated daily snapshot run supplies the
+     * manager email along with the employee ID.
+     */
+    const body =
+      await request.json();
+
+    /*
+     * ----------------------------
+     * AUTHENTICATION
+     * ----------------------------
+     *
+     * Normal dashboard requests continue to use
+     * Auth0 exactly as before.
+     *
+     * The automated Render Cron Job may instead
+     * authenticate with a private server secret.
+     */
+    const authorization =
+      request.headers.get(
+        'authorization'
+      ) || '';
+
+    const cronSecret =
+      process.env
+        .TRAINING_SNAPSHOT_CRON_SECRET ||
+      '';
+
+    const isCronRequest =
+      Boolean(cronSecret) &&
+      authorization ===
+        `Bearer ${cronSecret}`;
+
+    let managerEmail = null;
+
+    if (isCronRequest) {
+      managerEmail =
+        String(
+          body?.managerEmail || ''
+        )
+          .trim()
+          .toLowerCase();
+    } else {
+      managerEmail =
+        await getAuthenticatedManager();
+    }
 
     if (!managerEmail) {
       return NextResponse.json(
@@ -852,9 +895,6 @@ export async function POST(
         }
       );
     }
-
-    const body =
-      await request.json();
 
     const employeeId =
       String(
