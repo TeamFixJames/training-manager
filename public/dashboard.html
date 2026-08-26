@@ -500,6 +500,27 @@
 .report-trend-note-v41{font-size:9px;color:#718196;line-height:1.5;margin:10px 2px 0}
 @media(max-width:850px){.report-trend-detail-v41{grid-template-columns:repeat(2,1fr)}.report-consistency-row-v41{grid-template-columns:1fr 80px 80px}.report-consistency-row-v41>:nth-child(4),.report-consistency-row-v41>:nth-child(5){display:none}}
 </style>
+<style id="reports-history-v42-css">
+.report-history-v42{margin-top:14px;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+.report-history-status-v42{padding:18px;text-align:center;color:#7b8997;font-size:10px}
+.report-history-kpis-v42{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 13px;background:#fbfcfd;border-bottom:1px solid var(--line)}
+.report-history-kpi-v42{border:1px solid #edf0f4;border-radius:9px;background:#fff;padding:10px 11px}
+.report-history-kpi-v42 b{display:block;font-size:17px;color:#183550}.report-history-kpi-v42 span{display:block;margin-top:3px;font-size:8px;color:#718196;text-transform:uppercase;letter-spacing:.04em}.report-history-kpi-v42 small{display:block;margin-top:3px;font-size:8px;color:#8a98a6}
+.report-history-grid-v42{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px}
+.report-history-card-v42{border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.report-history-card-head-v42{padding:10px 12px;background:#f8fafc;border-bottom:1px solid var(--line)}
+.report-history-card-head-v42 b{display:block;font-size:10px;color:#27445e}.report-history-card-head-v42 span{display:block;font-size:8px;color:#7b8997;margin-top:2px}
+.report-history-chart-v42{height:190px;padding:14px 12px 9px;display:flex;align-items:flex-end;gap:7px;overflow-x:auto}
+.report-history-point-v42{height:160px;min-width:42px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;text-align:center}
+.report-history-value-v42{font-size:8px;font-weight:800;color:#29465f;margin-bottom:4px;white-space:nowrap}
+.report-history-bar-wrap-v42{height:125px;display:flex;align-items:flex-end;justify-content:center}
+.report-history-bar-v42{width:min(30px,70%);min-height:3px;background:#28577f;border-radius:6px 6px 2px 2px}
+.report-history-bar-v42.cert{background:#16803c}
+.report-history-date-v42{font-size:7px;color:#8190a0;margin-top:5px;white-space:nowrap}
+.report-history-foot-v42{padding:9px 12px;border-top:1px solid var(--line);font-size:8px;color:#718196;line-height:1.45;background:#fcfdfe}
+@media(max-width:900px){.report-history-grid-v42{grid-template-columns:1fr}.report-history-kpis-v42{grid-template-columns:repeat(2,1fr)}}
+</style>
+
 
 </head>
 <body>
@@ -2801,7 +2822,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
 
       if(reportModeV36==='activity')renderActivityV36();
       else if(reportModeV36==='cert')renderCertV36();
-      else if(reportModeV36==='trends')renderTrendsV41();
+      else if(reportModeV36==='trends')await renderTrendsV41();
       else renderActionV36();
     }catch(error){
       console.warn('Report refresh encountered an error',error);
@@ -2809,7 +2830,7 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       // Still render with whatever current data is available.
       if(reportModeV36==='activity')renderActivityV36();
       else if(reportModeV36==='cert')renderCertV36();
-      else if(reportModeV36==='trends')renderTrendsV41();
+      else if(reportModeV36==='trends')await renderTrendsV41();
       else renderActionV36();
     }finally{
       if(btn){
@@ -2974,7 +2995,114 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       lastTraining:lastActivityV36(e)||''
     };
   }
-  function renderTrendsV41(){
+  async function fetchHistoricalTrendsV42(count){
+    const selected=document.getElementById('reportEmployeeV36')?.value||'all';
+    const params=new URLSearchParams({weeks:String(count)});
+    if(selected!=='all')params.set('employeeId',String(selected));
+
+    const controller=new AbortController();
+    const timeoutId=setTimeout(()=>controller.abort(),15000);
+
+    try{
+      const response=await fetch('/api/training-trends?'+params.toString(),{
+        credentials:'same-origin',
+        cache:'no-store',
+        signal:controller.signal
+      });
+      const payload=await response.json();
+      if(!response.ok||payload?.success===false){
+        throw new Error(payload?.message||payload?.error||('Historical trends request failed ('+response.status+')'));
+      }
+      return payload;
+    }finally{
+      clearTimeout(timeoutId);
+    }
+  }
+
+  function shortSnapshotDateV42(value){
+    const d=new Date(String(value||'')+'T12:00:00');
+    if(Number.isNaN(d.getTime()))return String(value||'');
+    return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(d);
+  }
+
+  function historicalSeriesV42(payload){
+    const snapshots=Array.isArray(payload?.snapshots)?[...payload.snapshots]:[];
+    snapshots.sort((a,b)=>String(a.snapshotDate).localeCompare(String(b.snapshotDate))||String(a.employeeId).localeCompare(String(b.employeeId)));
+    const dates=[...new Set(snapshots.map(x=>String(x.snapshotDate||'')).filter(Boolean))];
+    const employeeIds=[...new Set(snapshots.map(x=>String(x.employeeId||'')).filter(Boolean))];
+    const latestByEmployee=new Map();
+    const series=[];
+
+    for(const date of dates){
+      for(const row of snapshots.filter(x=>String(x.snapshotDate)===date)){
+        latestByEmployee.set(String(row.employeeId),row);
+      }
+
+      const current=[...latestByEmployee.values()];
+      const studySeconds=current.reduce((n,x)=>n+Number(x.videoStudySeconds||0),0);
+      const certRows=current.filter(x=>(Number(x.certificationVideoTotal||0)+Number(x.sectionExamsTotal||0))>0);
+      const certificationPercent=certRows.length
+        ? certRows.reduce((n,x)=>n+Number(x.certificationPercent||0),0)/certRows.length
+        : null;
+
+      series.push({date,studySeconds,certificationPercent,certEmployees:certRows.length,employees:current.length});
+    }
+
+    return{series,employeeCount:employeeIds.length,snapshotCount:snapshots.length};
+  }
+
+  function historicalProgressHtmlV42(payload,selectedAll){
+    const built=historicalSeriesV42(payload);
+    const series=built.series;
+    if(!series.length){
+      return `<div class="report-history-v42"><div class="report-section-head-v36"><b>Historical Progress</b><span>Daily snapshot history</span></div><div class="report-history-status-v42">No historical snapshots are available for this selection yet. Daily collection is enabled, so this history will build automatically.</div></div>`;
+    }
+
+    const first=series[0],latest=series.at(-1);
+    const studyGrowth=Math.max(0,Number(latest.studySeconds||0)-Number(first.studySeconds||0));
+    const certValues=series.filter(x=>x.certificationPercent!==null);
+    const firstCert=certValues[0]?.certificationPercent??null;
+    const latestCert=certValues.at(-1)?.certificationPercent??null;
+    const certGrowth=firstCert===null||latestCert===null?null:latestCert-firstCert;
+    const maxStudy=Math.max(1,...series.map(x=>Number(x.studySeconds||0)));
+    const hasGrowth=series.length>1;
+    const scopeLabel=selectedAll?'Team total':'Employee total';
+    const certLabel=selectedAll?'Average certification progress':'Certification progress';
+
+    return `<div class="report-history-v42">
+      <div class="report-section-head-v36"><b>Historical Progress</b><span>${eV36(first.date)} to ${eV36(latest.date)} · ${built.snapshotCount} snapshots</span></div>
+      <div class="report-history-kpis-v42">
+        <div class="report-history-kpi-v42"><b>${eV36(durationV36(latest.studySeconds))}</b><span>Latest Actual Video Study Time</span><small>${eV36(scopeLabel)} · cumulative</small></div>
+        <div class="report-history-kpi-v42"><b>${hasGrowth?'+'+eV36(durationV36(studyGrowth)):'Baseline'}</b><span>Recorded Study Time Growth</span><small>${hasGrowth?'Since first snapshot in this range':'A second daily snapshot will establish growth'}</small></div>
+        <div class="report-history-kpi-v42"><b>${latestCert===null?'—':Math.round(latestCert)+'%'}</b><span>${eV36(certLabel)}</span><small>${latest.certEmployees||0} certification employee${latest.certEmployees===1?'':'s'} represented</small></div>
+        <div class="report-history-kpi-v42"><b>${series.length}</b><span>Snapshot Days</span><small>${built.employeeCount} employee${built.employeeCount===1?'':'s'} represented</small></div>
+      </div>
+      <div class="report-history-grid-v42">
+        <div class="report-history-card-v42">
+          <div class="report-history-card-head-v42"><b>Cumulative Actual Video Study Time</b><span>${selectedAll?'Combined across employees':'LearnWorlds video-only study time'} · includes rewatches</span></div>
+          <div class="report-history-chart-v42">
+            ${series.map(x=>{
+              const h=Math.max(x.studySeconds?4:0,Math.round((Number(x.studySeconds||0)/maxStudy)*100));
+              return `<div class="report-history-point-v42" title="${eV36(x.date)} · ${eV36(durationV36(x.studySeconds))}"><div class="report-history-value-v42">${eV36(durationV36(x.studySeconds))}</div><div class="report-history-bar-wrap-v42"><div class="report-history-bar-v42" style="height:${h}%"></div></div><div class="report-history-date-v42">${eV36(shortSnapshotDateV42(x.date))}</div></div>`;
+            }).join('')}
+          </div>
+          <div class="report-history-foot-v42">This chart uses the daily cumulative video-study snapshots. Growth between dates reflects additional recorded video playback, including rewatches.</div>
+        </div>
+        <div class="report-history-card-v42">
+          <div class="report-history-card-head-v42"><b>${eV36(certLabel)}</b><span>Videos + required section exams</span></div>
+          ${certValues.length?`<div class="report-history-chart-v42">
+            ${series.map(x=>{
+              const value=x.certificationPercent;
+              const h=value===null?0:Math.max(value?4:0,Math.round(Number(value)));
+              return `<div class="report-history-point-v42" title="${eV36(x.date)} · ${value===null?'No certification path':Math.round(value)+'%'}"><div class="report-history-value-v42">${value===null?'—':Math.round(value)+'%'}</div><div class="report-history-bar-wrap-v42"><div class="report-history-bar-v42 cert" style="height:${h}%"></div></div><div class="report-history-date-v42">${eV36(shortSnapshotDateV42(x.date))}</div></div>`;
+            }).join('')}
+          </div><div class="report-history-foot-v42">${selectedAll?'Team values are the average progress of employees who have a Path to Certification.':'Progress is based on all required certification videos and the 10 required section exams.'}${hasGrowth&&certGrowth!==null?' Change during this recorded range: '+(certGrowth>=0?'+':'')+Math.round(certGrowth)+' percentage points.':''}</div>`:`<div class="report-history-status-v42">No Path to Certification snapshot data is available for this selection.</div>`}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  async function renderTrendsV41(){
     const count=Math.max(4,Math.min(12,Number(document.getElementById('reportTrendWeeksV41')?.value||8)));
     const weeks=trendWeeksV41(count);
     const emps=employeesV36();
@@ -3003,6 +3131,8 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       b.consistencyPct-a.consistencyPct || b.videos-a.videos || String(a.employee.name).localeCompare(String(b.employee.name))
     );
     const selectedAll=(document.getElementById('reportEmployeeV36')?.value||'all')==='all';
+
+    let historicalHtml=`<div class="report-history-v42"><div class="report-section-head-v36"><b>Historical Progress</b><span>Daily snapshot history</span></div><div class="report-history-status-v42">Loading historical snapshots…</div></div>`;
 
     document.getElementById('reportOutputV36').innerHTML=`
       <div class="report-kpis-v36">
@@ -3046,9 +3176,20 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
         </div>`).join(''):'<div class="report-empty-v36">No employees match this trend report.</div>'}
       </div>
 
-      <div class="report-trend-note-v41"><b>About trend data:</b> Weekly trends are based on dated training completions and engagement records, which can be placed accurately on a timeline. Actual Video Study Time is intentionally not charted by week because the training platform currently provides a cumulative study-time value for each video rather than a historical minute-by-minute timeline. Historical study-time trends can be added once snapshot tracking is enabled.</div>`;
+      <div id="reportHistoricalV42">${historicalHtml}</div>
+      <div class="report-trend-note-v41"><b>About trend data:</b> Weekly completion trends use dated training activity. Historical Progress uses the automated daily PostgreSQL snapshots, which preserve cumulative video study time and certification progress from the day snapshot collection was enabled forward.</div>`;
 
     bindReportEmployeesV36();
+
+    try{
+      const payload=await fetchHistoricalTrendsV42(count);
+      const target=document.getElementById('reportHistoricalV42');
+      if(target)target.innerHTML=historicalProgressHtmlV42(payload,selectedAll);
+    }catch(error){
+      console.warn('Historical trends could not be loaded',error);
+      const target=document.getElementById('reportHistoricalV42');
+      if(target)target.innerHTML=`<div class="report-history-v42"><div class="report-section-head-v36"><b>Historical Progress</b><span>Daily snapshot history</span></div><div class="report-history-status-v42">Historical snapshot data could not be loaded right now. The existing completion trends above are still available.</div></div>`;
+    }
   }
 
   function renderCertV36(){
