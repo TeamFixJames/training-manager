@@ -661,7 +661,179 @@ function calculateLevel1Readiness(
       PASSING_SCORE
   };
 }
-\nasync function upsertDailySnapshot({\n  managerEmail,\n  employeeId,\n  activities,\n  level1,\n  level2\n}) {\n  /*\n   * LearnWorlds time_on_unit is cumulative.\n   * Sum video activities only so PDFs, exams,\n   * ebooks, and other activity types do not\n   * inflate Training Manager study-time trends.\n   */\n  const videoStudySeconds =\n    activities\n      .filter(\n        (activity) =>\n          activity?.type === 'video'\n      )\n      .reduce(\n        (total, activity) =>\n          total +\n          Math.max(\n            0,\n            Number(\n              activity?.timeSpentSeconds || 0\n            )\n          ),\n        0\n      );\n\n  /*\n   * Certification metrics are meaningful only\n   * when the employee actually has a Path to\n   * Certification. requiredVideoCount will be 0\n   * when no Certification path exists.\n   */\n  const hasCertificationPath =\n    Number(\n      level1?.requiredVideoCount || 0\n    ) > 0;\n\n  const certificationVideoComplete =\n    hasCertificationPath\n      ? Number(\n          level1?.completedVideoCount || 0\n        )\n      : 0;\n\n  const certificationVideoTotal =\n    hasCertificationPath\n      ? Number(\n          level1?.requiredVideoCount || 0\n        )\n      : 0;\n\n  const sectionExamsPassed =\n    hasCertificationPath\n      ? Number(\n          level1?.passedSectionExamCount || 0\n        )\n      : 0;\n\n  const sectionExamsTotal =\n    hasCertificationPath\n      ? Number(\n          level1?.requiredSectionExamCount || 0\n        )\n      : 0;\n\n  const totalRequirements =\n    certificationVideoTotal +\n    sectionExamsTotal;\n\n  const completedRequirements =\n    certificationVideoComplete +\n    sectionExamsPassed;\n\n  const certificationPercent =\n    totalRequirements > 0\n      ? Number(\n          (\n            (completedRequirements /\n              totalRequirements) *\n            100\n          ).toFixed(2)\n        )\n      : 0;\n\n  await db.query(\n    `\n      INSERT INTO training_manager_snapshots (\n        manager_email,\n        employee_lw_id,\n        snapshot_date,\n        video_study_seconds,\n        certification_video_complete,\n        certification_video_total,\n        section_exams_passed,\n        section_exams_total,\n        certification_percent,\n        level1_passed,\n        level2_passed,\n        captured_at\n      )\n      VALUES (\n        $1,\n        $2,\n        CURRENT_DATE,\n        $3,\n        $4,\n        $5,\n        $6,\n        $7,\n        $8,\n        $9,\n        $10,\n        NOW()\n      )\n      ON CONFLICT (\n        manager_email,\n        employee_lw_id,\n        snapshot_date\n      )\n      DO UPDATE SET\n        video_study_seconds =\n          EXCLUDED.video_study_seconds,\n        certification_video_complete =\n          EXCLUDED.certification_video_complete,\n        certification_video_total =\n          EXCLUDED.certification_video_total,\n        section_exams_passed =\n          EXCLUDED.section_exams_passed,\n        section_exams_total =\n          EXCLUDED.section_exams_total,\n        certification_percent =\n          EXCLUDED.certification_percent,\n        level1_passed =\n          EXCLUDED.level1_passed,\n        level2_passed =\n          EXCLUDED.level2_passed,\n        captured_at = NOW()\n    `,\n    [\n      managerEmail,\n      employeeId,\n      Math.round(videoStudySeconds),\n      certificationVideoComplete,\n      certificationVideoTotal,\n      sectionExamsPassed,\n      sectionExamsTotal,\n      certificationPercent,\n      level1?.passed === true,\n      level2?.passed === true\n    ]\n  );\n\n  return {\n    videoStudySeconds:\n      Math.round(videoStudySeconds),\n    certificationVideoComplete,\n    certificationVideoTotal,\n    sectionExamsPassed,\n    sectionExamsTotal,\n    certificationPercent,\n    level1Passed:\n      level1?.passed === true,\n    level2Passed:\n      level2?.passed === true\n  };\n}\n
+
+async function upsertDailySnapshot({
+  managerEmail,
+  employeeId,
+  activities,
+  level1,
+  level2
+}) {
+  /*
+   * LearnWorlds time_on_unit is cumulative.
+   * Sum video activities only so PDFs, exams,
+   * ebooks, and other activity types do not
+   * inflate Training Manager study-time trends.
+   */
+  const videoStudySeconds =
+    activities
+      .filter(
+        (activity) =>
+          activity?.type === 'video'
+      )
+      .reduce(
+        (total, activity) =>
+          total +
+          Math.max(
+            0,
+            Number(
+              activity?.timeSpentSeconds || 0
+            )
+          ),
+        0
+      );
+
+  /*
+   * Certification metrics are meaningful only
+   * when the employee actually has a Path to
+   * Certification. requiredVideoCount will be 0
+   * when no Certification path exists.
+   */
+  const hasCertificationPath =
+    Number(
+      level1?.requiredVideoCount || 0
+    ) > 0;
+
+  const certificationVideoComplete =
+    hasCertificationPath
+      ? Number(
+          level1?.completedVideoCount || 0
+        )
+      : 0;
+
+  const certificationVideoTotal =
+    hasCertificationPath
+      ? Number(
+          level1?.requiredVideoCount || 0
+        )
+      : 0;
+
+  const sectionExamsPassed =
+    hasCertificationPath
+      ? Number(
+          level1?.passedSectionExamCount || 0
+        )
+      : 0;
+
+  const sectionExamsTotal =
+    hasCertificationPath
+      ? Number(
+          level1?.requiredSectionExamCount || 0
+        )
+      : 0;
+
+  const totalRequirements =
+    certificationVideoTotal +
+    sectionExamsTotal;
+
+  const completedRequirements =
+    certificationVideoComplete +
+    sectionExamsPassed;
+
+  const certificationPercent =
+    totalRequirements > 0
+      ? Number(
+          (
+            (completedRequirements /
+              totalRequirements) *
+            100
+          ).toFixed(2)
+        )
+      : 0;
+
+  await db.query(
+    `
+      INSERT INTO training_manager_snapshots (
+        manager_email,
+        employee_lw_id,
+        snapshot_date,
+        video_study_seconds,
+        certification_video_complete,
+        certification_video_total,
+        section_exams_passed,
+        section_exams_total,
+        certification_percent,
+        level1_passed,
+        level2_passed,
+        captured_at
+      )
+      VALUES (
+        $1,
+        $2,
+        CURRENT_DATE,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        NOW()
+      )
+      ON CONFLICT (
+        manager_email,
+        employee_lw_id,
+        snapshot_date
+      )
+      DO UPDATE SET
+        video_study_seconds =
+          EXCLUDED.video_study_seconds,
+        certification_video_complete =
+          EXCLUDED.certification_video_complete,
+        certification_video_total =
+          EXCLUDED.certification_video_total,
+        section_exams_passed =
+          EXCLUDED.section_exams_passed,
+        section_exams_total =
+          EXCLUDED.section_exams_total,
+        certification_percent =
+          EXCLUDED.certification_percent,
+        level1_passed =
+          EXCLUDED.level1_passed,
+        level2_passed =
+          EXCLUDED.level2_passed,
+        captured_at = NOW()
+    `,
+    [
+      managerEmail,
+      employeeId,
+      Math.round(videoStudySeconds),
+      certificationVideoComplete,
+      certificationVideoTotal,
+      sectionExamsPassed,
+      sectionExamsTotal,
+      certificationPercent,
+      level1?.passed === true,
+      level2?.passed === true
+    ]
+  );
+
+  return {
+    videoStudySeconds:
+      Math.round(videoStudySeconds),
+    certificationVideoComplete,
+    certificationVideoTotal,
+    sectionExamsPassed,
+    sectionExamsTotal,
+    certificationPercent,
+    level1Passed:
+      level1?.passed === true,
+    level2Passed:
+      level2?.passed === true
+  };
+}
+
 export async function POST(
   request
 ) {
