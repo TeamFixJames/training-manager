@@ -580,15 +580,16 @@
   <div class="modal-actions"><button class="btn" id="cancelModal">Cancel</button><button class="btn primary" id="saveEmployeeBtn">Add Employee</button></div>
 </div></div>
 <div class="modal-bg" id="pathModal"><div class="modal">
-  <div class="modal-head"><h3>Add Training Path</h3><button class="icon" id="closePathModal">×</button></div>
+  <div class="modal-head"><h3 id="pathModalTitle">Add Training Path</h3><button class="icon" id="closePathModal">×</button></div>
   <div class="modal-body">
-    <div class="field"><label>Choose the next training path</label>
-      <label class="path-choice"><input type="radio" name="newPath" value="cert"><b>Path to Certification · Guided Schedule</b><p>One video per business day, automatically scheduled in curriculum order.</p></label>
-      <label class="path-choice"><input type="radio" name="newPath" value="ongoing" checked><b>Ongoing Training</b><p>Open-ended weekly training after certification. No finish date or progress percentage; keep adding videos, live calls, platform tools, and workshops over time.</p></label>
-      
+    <div id="initialCertMessageV43" class="field" style="display:none">
+      <div class="path-choice" style="cursor:default"><b>Path 1 · Path to Certification</b><p>Every new employee begins with Path to Certification. Choose the employee’s start date and normal daily training time, and the full certification schedule will be built automatically at one video per business day.</p></div>
     </div>
-    <div class="two"><div class="field"><label>Start date</label><input id="pathStart" type="date"></div><div class="field"><label>Daily training time</label><input id="pathTime" type="time" value="08:00"><div class="muted-note" style="margin-top:5px">Applied to every scheduled video in this training path. You can change it later without moving the dates.</div></div></div>
-    <div class="muted-note">Adding a new path keeps all previous training paths and their completion history intact.</div>
+    <div class="field" id="nextPathChoicesV43"><label>Choose the next training path</label>
+      <label class="path-choice"><input type="radio" name="newPath" value="ongoing" checked><b>Ongoing Training</b><p>Continued development after certification. This path is open-ended with no finish date or progress percentage.</p></label>
+    </div>
+    <div class="two"><div class="field"><label>Start date</label><input id="pathStart" type="date"></div><div class="field"><label>Daily training time</label><input id="pathTime" type="time" value="08:00"><div class="muted-note" style="margin-top:5px" id="pathTimeHintV43">Applied to every scheduled video in this training path. You can change it later without moving the dates.</div></div></div>
+    <div class="muted-note" id="pathModalFooterV43">Adding a new path keeps all previous training paths and their completion history intact.</div>
   </div>
   <div class="modal-actions"><button class="btn" id="cancelPathModal">Cancel</button><button class="btn primary" id="savePathBtn">Add Training Path</button></div>
 </div></div>
@@ -899,9 +900,9 @@ function setDashboardView(view){
 }
 
 function renderRoster(){const root=$('#employeeList');if(!db.employees.length){root.innerHTML='<div style="padding:15px 10px;color:#98a2b3;font-size:11px;line-height:1.5">No employees yet. Add your first employee to create a training plan.</div>';return}root.innerHTML=db.employees.map(e=>{const p=activePath(e),pct=pathPct(p),completed=e.paths.filter(pathComplete).length;const ongoing=p?.type==='ongoing';const employeeSelected=(window.__dashboardView!=='team'&&window.__dashboardView!=='reports'&&e.id===db.activeId);return`<button class="employee-card ${employeeSelected?'active':''}" data-id="${e.id}"><strong>${esc(e.name)}</strong><div class="employee-meta"><span>${p?esc(pathName(p.type)):'No path'}</span><span>${ongoing?'ACTIVE':pct+'%'}</span></div>${ongoing?'':`<div class="mini-progress"><i style="width:${pct}%"></i></div>`}<div style="font-size:9px;color:#98a2b3;margin-top:6px">${e.paths.length} path${e.paths.length===1?'':'s'} · ${ongoing?'open-ended training':completed+' complete'}</div></button>`}).join('');$$('.employee-card').forEach(b=>b.onclick=()=>{setDashboardView('employee');db.activeId=b.dataset.id;persist();renderAll()})}
-function renderAll(){if(!window.__dashboardView)window.__dashboardView=window.__teamHome?'team':'employee';setDashboardView(window.__dashboardView);renderRoster();const e=active();if(window.__dashboardView==='team'&&db.employees.length){renderTeamOverview();return}$('#topActions').style.display=e?'flex':'none';if(!e){$('#topTitle').textContent='Training Manager Dashboard';$('#topSub').textContent='Add an employee to begin building and tracking training.';$('#content').innerHTML='<div class="empty"><div><h3>Build your training roster</h3><p>Add employees, assign training paths, and keep a separate schedule and training history for each person.</p><button class="btn primary" onclick="openEmployeeModal()">+ Add your first employee</button></div></div>';return}renderEmployee(e)}
+function renderAll(){if(!window.__dashboardView)window.__dashboardView=window.__teamHome?'team':'employee';setDashboardView(window.__dashboardView);renderRoster();const e=active();if(window.__dashboardView==='team'&&db.employees.length){renderTeamOverview();return}$('#topActions').style.display=e?'flex':'none';const topAddPath=$('#addPathBtn');if(topAddPath&&e)topAddPath.textContent=(e.paths||[]).some(x=>x.type==='cert')?'+ Add Training Path':'Set Up Path to Certification';if(!e){$('#topTitle').textContent='Training Manager Dashboard';$('#topSub').textContent='Add an employee to begin building and tracking training.';$('#content').innerHTML='<div class="empty"><div><h3>Build your training roster</h3><p>Add employees, assign training paths, and keep a separate schedule and training history for each person.</p><button class="btn primary" onclick="openEmployeeModal()">+ Add your first employee</button></div></div>';return}renderEmployee(e)}
 function pathTabs(e){return`<div class="path-history-label">Training paths</div><div class="path-toolbar">${e.paths.map((p,i)=>{const pct=pathPct(p),done=pathComplete(p);const status=p.type==='ongoing'?'Open-ended · active':done?'<span class="done-mark">Complete</span>':pct+'% complete';return`<button class="path-tab ${p.id===e.activePathId?'active':''}" data-path="${p.id}"><b>${i+1}. ${esc(pathName(p.type))}</b><span>${fmt(p.startDate)} · ${status}</span></button>`}).join('')}<button class="add-path" id="inlineAddPath" type="button" onclick="openPathModal()">+ Add Training Path</button>${e.paths.length?'<button class="btn danger" id="removePathBtn">Remove Selected Path</button>':''}</div>`}
-function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=pathTabs(e)+'<div class="empty"><div><h3>No training path selected</h3><p>Add a training path to begin scheduling.</p><button class="btn primary" onclick="openPathModal()">+ Add Training Path</button></div></div>';return}
+function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML='<div class="empty"><div><h3>Set Up Path to Certification</h3><p>Every new employee begins with Path to Certification. Choose their start date and normal daily training time to build the guided certification schedule.</p><button class="btn primary" onclick="openPathModal()">Set Up Path to Certification</button></div></div>';return}
  ensurePathExtras(p);const core=progressEvents(p),completed=core.filter(x=>x.completed).length,pct=pathPct(p);
  const certReadinessForProgress=p.type==='cert'?(e.certification?.level1||null):null;
  const certExamsForProgress=p.type==='cert'?(Array.isArray(e.certification?.sectionExams)?e.certification.sectionExams:[]):[]; 
@@ -1108,9 +1109,36 @@ function removeSelectedPath(){
 function openEmployeeModal(id=null){editingId=id;const e=id?db.employees.find(x=>x.id===id):null;$('#modalTitle').textContent=e?'Employee Settings':'Add Employee';$('#saveEmployeeBtn').textContent=e?'Save Changes':'Add Employee';$('#empName').value=e?.name||'';$('#mgrName').value=e?.manager||'';$('#empName').readOnly=!!e?.learnWorldsManaged;$('#mgrName').readOnly=!!e?.learnWorldsManaged;$('#empStart').value=iso(normalizeStart(iso(new Date())));$('#empTime').value='08:00';$$('input[name="path"]').forEach(r=>r.checked=r.value==='cert');const pathField=$$('input[name="path"]')[0]?.closest('.field');if(pathField)pathField.style.display=e?'none':'block';$('#certHint').textContent=e?'Training paths are managed separately using “Add Training Path.”':`Path to Certification contains ${certVideos.length} videos totaling ${formatSeconds(totalCertSeconds)}. At one video per business day, it spans ${Math.ceil(certVideos.length/5)} training weeks.`;$('#employeeModal').classList.add('show')}
 function closeEmployeeModal(){$('#employeeModal').classList.remove('show')}
 function saveEmployee(){const name=$('#empName').value.trim();if(!name){alert('Please enter an employee name.');return}const manager=$('#mgrName').value.trim();if(editingId){const e=db.employees.find(x=>x.id===editingId);if(!e.learnWorldsManaged){e.name=name;e.manager=manager}db.activeId=e.id;persist()}else{const start=$('#empStart').value,time=$('#empTime').value||'08:00',type=$('input[name="path"]:checked').value,p=makePath(type,start,time);const e={id:uid(),name,manager,paths:[p],activePathId:p.id};db.employees.push(e);db.activeId=e.id;persist()}closeEmployeeModal();renderAll();showToast(editingId?'Employee updated':'Employee added')}
-function openPathModal(){const e=active();if(!e)return;const p=activePath(e);let start=iso(normalizeStart(iso(new Date())));if(p?.events?.length){const last=p.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).at(-1);if(last)start=iso(nextBusinessDay(last.date))}$('#pathStart').value=start;$('#pathTime').value=p?.defaultTime||'08:00';$$('input[name="newPath"]').forEach(r=>r.checked=r.value==='ongoing');$('#pathModal').classList.add('show')}
-function closePathModal(){$('#pathModal').classList.remove('show')}
-function savePath(){const e=active();if(!e)return;const type=$('input[name="newPath"]:checked').value,start=$('#pathStart').value,time=$('#pathTime').value||'08:00';if(!start){alert('Please choose a start date.');return}const p=makePath(type,start,time);e.paths.push(p);e.activePathId=p.id;syncCertificationGroupCallFromTagsV42(e);persist();closePathModal();renderAll();showToast(`${pathName(type)} added`);requestTrainingActivitySyncV29(e)}
+let initialCertificationSetupV43=false;
+function openPathModal(){
+  const e=active();if(!e)return;
+  const hasCertification=(e.paths||[]).some(x=>x.type==='cert');
+  initialCertificationSetupV43=!hasCertification;
+  const p=activePath(e);
+  let start=iso(normalizeStart(iso(new Date())));
+  if(!initialCertificationSetupV43&&p?.events?.length){const last=p.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).at(-1);if(last)start=iso(nextBusinessDay(last.date))}
+  $('#pathStart').value=start;
+  $('#pathTime').value=p?.defaultTime||'08:00';
+  const initial=$('#initialCertMessageV43'),choices=$('#nextPathChoicesV43'),title=$('#pathModalTitle'),save=$('#savePathBtn'),hint=$('#pathTimeHintV43'),footer=$('#pathModalFooterV43');
+  if(initial)initial.style.display=initialCertificationSetupV43?'block':'none';
+  if(choices)choices.style.display=initialCertificationSetupV43?'none':'block';
+  if(title)title.textContent=initialCertificationSetupV43?'Set Up Path to Certification':'Add Training Path';
+  if(save)save.textContent=initialCertificationSetupV43?'Build Training Schedule':'Add Training Path';
+  if(hint)hint.textContent=initialCertificationSetupV43?'This is the normal time the employee will complete scheduled certification videos. It can be changed later without moving the dates.':'Applied to every scheduled video in this training path. You can change it later without moving the dates.';
+  if(footer)footer.textContent=initialCertificationSetupV43?'Path to Certification is the required first training path for every new employee.':'Adding a new path keeps all previous training paths and their completion history intact.';
+  const ongoing=$('input[name="newPath"][value="ongoing"]');if(ongoing)ongoing.checked=true;
+  $('#pathModal').classList.add('show');
+}
+function closePathModal(){$('#pathModal').classList.remove('show');initialCertificationSetupV43=false}
+function savePath(){
+  const e=active();if(!e)return;
+  const hasCertification=(e.paths||[]).some(x=>x.type==='cert');
+  const type=initialCertificationSetupV43||!hasCertification?'cert':'ongoing';
+  const start=$('#pathStart').value,time=$('#pathTime').value||'08:00';
+  if(!start){alert('Please choose a start date.');return}
+  if(type==='cert'&&hasCertification){alert('Path to Certification has already been created for this employee.');closePathModal();return}
+  const p=makePath(type,start,time);e.paths.push(p);e.activePathId=p.id;syncCertificationGroupCallFromTagsV42(e);persist();closePathModal();renderAll();showToast(type==='cert'?'Path to Certification schedule created':'Ongoing Training added');requestTrainingActivitySyncV29(e)
+}
 function updatePathDailyTrainingTime(newTime){
   const e=active(),p=activePath(e);
   if(!e||!p||!newTime)return;
