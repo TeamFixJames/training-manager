@@ -3505,11 +3505,9 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
         </div>
 
         ${items.map(item=>{
-          const pct=Math.max(2,Math.round((Number(item.studySeconds||0)/maxStudy)*100));
           return `<div class="report-breakdown-row-v40">
             <div class="report-breakdown-name-v40">
               <b>${eV36(item.name)}</b>
-              <div class="report-mini-bar-v40"><i style="width:${pct}%"></i></div>
             </div>
             <div>${item.videos}</div>
             <div>${eV36(durationV36(item.scheduledSeconds))}</div>
@@ -3551,8 +3549,8 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       </div>
       <div style="font-size:9px;color:#718196;margin:-6px 2px 12px;line-height:1.45"><b>Actual Video Study Time</b> comes from the training platform's accumulated video playback time. It can exceed the video's runtime when a video is watched more than once. For a date-range report, this is the current cumulative study time for the videos represented in the report, not a time-stamped breakdown of when every minute was watched.</div>
       <div class="report-breakdown-grid-v40">
-        ${breakdownCardV40('Training Path Breakdown','Where completed video activity is occurring',pathBreakdown)}
-        ${breakdownCardV40('Section / Library Breakdown','Which content areas are receiving the most training time',sectionBreakdown)}
+        ${breakdownCardV40('Video Activity by Training Path','Completed videos represented in this report period',pathBreakdown)}
+        ${breakdownCardV40('Video Activity by Section / Library','Shows where completed video activity occurred during this report period — not section completion',sectionBreakdown)}
       </div>
 
       <div class="report-section-v36"><div class="report-section-head-v36"><b>Completed Activity</b><span>${rows.length} records · ${start} to ${end}</span></div>
