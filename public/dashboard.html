@@ -509,6 +509,9 @@
 .report-consistency-v41{margin-top:12px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
 .report-consistency-row-v41{display:grid;grid-template-columns:minmax(150px,1.5fr) 90px 90px 110px minmax(170px,1.4fr);gap:9px;align-items:center;padding:9px 12px;border-bottom:1px solid #edf0f3;font-size:9px}
 .report-consistency-row-v41:last-child{border-bottom:0}.report-consistency-row-v41.header{background:#fcfdfe;color:#718196;text-transform:uppercase;letter-spacing:.04em;font-size:8px;font-weight:800}
+.report-consistency-row-v41.clickable{cursor:pointer;transition:background .15s ease,box-shadow .15s ease}
+.report-consistency-row-v41.clickable:hover,.report-consistency-row-v41.clickable:focus{background:#f5f9fc;box-shadow:inset 3px 0 0 #28577f;outline:none}
+.report-consistency-open-v51{display:block;margin-top:3px;font-size:8px;font-weight:800;color:#28577f}
 .report-consistency-name-v41 b{display:block;font-size:10px;color:#263b4d}.report-consistency-name-v41 span{display:block;color:#8190a0;font-size:8px;margin-top:2px}
 .report-consistency-track-v41{height:5px;background:#edf1f5;border-radius:99px;overflow:hidden}.report-consistency-track-v41 i{display:block;height:100%;background:#16803c;border-radius:99px}
 .report-trend-note-v41{font-size:9px;color:#718196;line-height:1.5;margin:10px 2px 0}
@@ -3329,10 +3332,10 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       <div class="reports-v36">
         <div class="reports-v36-head"><div><h3>Manager Reporting Center</h3><p>Use activity reporting for completed work, certification reporting for current progress, and the action report to decide where manager follow-up is needed.</p></div></div>
         <div class="report-tabs-v36">
-          <button class="report-tab-v36 active" data-mode="activity">Activity Report</button>
-          <button class="report-tab-v36" data-mode="cert">Certification & Progress</button>
-          <button class="report-tab-v36" data-mode="action">Manager Action Report</button>
-          <button class="report-tab-v36" data-mode="trends">Training Trends</button>
+          <button class="report-tab-v36 ${reportModeV36==='activity'?'active':''}" data-mode="activity">Activity Report</button>
+          <button class="report-tab-v36 ${reportModeV36==='cert'?'active':''}" data-mode="cert">Certification & Progress</button>
+          <button class="report-tab-v36 ${reportModeV36==='action'?'active':''}" data-mode="action">Manager Action Report</button>
+          <button class="report-tab-v36 ${reportModeV36==='trends'?'active':''}" data-mode="trends">Training Trends</button>
         </div>
         <div class="report-controls-v36">
           <div class="date-control-v36"><label>Start Date</label><input id="reportStartV36" type="date" value="${start}"></div>
@@ -3772,10 +3775,10 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
       </div>
 
       <div class="report-consistency-v41">
-        <div class="report-section-head-v36"><b>${selectedAll?'Employee Training Consistency':'Training Consistency'}</b><span>Weeks with any recorded training activity</span></div>
+        <div class="report-section-head-v36"><b>${selectedAll?'Employee Training Consistency':'Training Consistency'}</b><span>Weeks with any recorded training activity · Select an employee to open their training profile</span></div>
         <div class="report-consistency-row-v41 header"><div>Employee</div><div>Active Weeks</div><div>Videos</div><div>Scheduled Time</div><div>Consistency</div></div>
-        ${employeeSummaries.length?employeeSummaries.map(x=>`<div class="report-consistency-row-v41 clickable" data-report-emp="${eV36(x.employee.id)}">
-          <div class="report-consistency-name-v41"><b>${eV36(x.employee.name||'Employee')}</b><span>${x.lastTraining?'Last training '+eV36(x.lastTraining):'No training recorded'}</span></div>
+        ${employeeSummaries.length?employeeSummaries.map(x=>`<div class="report-consistency-row-v41 clickable" data-report-emp="${eV36(x.employee.id)}" role="button" tabindex="0" title="Open ${eV36(x.employee.name||'employee')} training profile">
+          <div class="report-consistency-name-v41"><b>${eV36(x.employee.name||'Employee')}</b><span>${x.lastTraining?'Last training '+eV36(x.lastTraining):'No training recorded'}</span><span class="report-consistency-open-v51">Open training profile →</span></div>
           <div>${x.activeWeeks}/${weeks.length}</div>
           <div>${x.videos}</div>
           <div>${eV36(durationV36(x.scheduledSeconds))}</div>
@@ -3851,7 +3854,11 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     bindReportEmployeesV36();
   }
   function bindReportEmployeesV36(){
-    document.querySelectorAll('[data-report-emp]').forEach(tr=>tr.onclick=()=>{if(typeof setDashboardView==='function')setDashboardView('employee');db.activeId=tr.dataset.reportEmp;if(typeof persist==='function')persist();if(typeof renderAll==='function')renderAll()});
+    document.querySelectorAll('[data-report-emp]').forEach(tr=>{
+      const openEmployee=()=>{if(typeof setDashboardView==='function')setDashboardView('employee');db.activeId=tr.dataset.reportEmp;if(typeof persist==='function')persist();if(typeof renderAll==='function')renderAll()};
+      tr.onclick=openEmployee;
+      if(tr.getAttribute('role')==='button')tr.onkeydown=(ev)=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openEmployee()}};
+    });
   }
   function csvDownloadV36(name,rows){
     const csv=rows.map(r=>r.map(v=>'"'+qV36(v).replace(/"/g,'""')+'"').join(',')).join('\n');
