@@ -590,6 +590,24 @@
 .path-banner{display:none!important}
 @media(max-width:900px){.manager-action-v45{align-items:flex-start}.training-stage-main-v44{grid-template-columns:1fr!important}.schedule-settings-v46{grid-template-columns:1fr}.schedule-setting-card-v46{align-items:flex-start;flex-direction:column}.schedule-setting-control-v46{width:100%;flex-wrap:wrap}}
 </style>
+
+<style id="workspace-cleanup-v48">
+.support-tools-top-v48{margin:0 0 16px}
+.support-tools-top-v48 .sales-fix-tools-v47{margin:0}
+.schedule-head-actions-v48{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.schedule-head-actions-v48 .btn{white-space:nowrap}
+.primary-work-v45>.panel-head{align-items:center}
+.primary-work-v45 .table-wrap{border-top:0}
+.path-settings-summary-v48{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.path-setting-summary-v48{border:1px solid #e0e6ec;border-radius:10px;background:#f8fafc;padding:10px 11px}
+.path-setting-summary-v48 b{display:block;font-size:10px;color:#344d63;margin-bottom:3px}
+.path-setting-summary-v48 span{display:block;font-size:10px;color:#6f7f8f;line-height:1.4}
+.add-training-choice-v48{width:100%;border:1px solid #d8e1ea;border-radius:11px;background:#fff;padding:13px 14px;text-align:left;cursor:pointer;margin-bottom:9px}
+.add-training-choice-v48:hover{background:#f8fafc;border-color:#aebdcb}
+.add-training-choice-v48 b{display:block;font-size:12px;color:#183b5b}
+.add-training-choice-v48 span{display:block;font-size:10px;color:#718196;line-height:1.45;margin-top:4px}
+@media(max-width:760px){.schedule-head-actions-v48{margin-top:8px}.path-settings-summary-v48{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -611,6 +629,18 @@
   </section>
 </div>
 
+<div class="modal-bg" id="pathSettingsModalV48"><div class="modal" style="width:min(600px,100%)">
+  <div class="modal-head"><h3>Path Settings</h3><button class="icon" id="closePathSettingsV48" type="button">×</button></div>
+  <div class="modal-body" id="pathSettingsBodyV48"></div>
+  <div class="modal-actions"><button class="btn" id="donePathSettingsV48" type="button">Done</button></div>
+</div></div>
+<div class="modal-bg" id="addTrainingMenuV48"><div class="modal" style="width:min(540px,100%)">
+  <div class="modal-head"><h3>Add Training</h3><button class="icon" id="closeAddTrainingV48" type="button">×</button></div>
+  <div class="modal-body">
+    <button class="add-training-choice-v48" id="addTrainingWebinarV48" type="button"><b>Webinar / Workshop</b><span>Add a one-time live training event. It will not change the certification video pace.</span></button>
+    <button class="add-training-choice-v48" id="addTrainingItemV48" type="button"><b>Training Item</b><span>Add a custom one-time or recurring training activity.</span></button>
+  </div>
+</div></div>
 <div class="modal-bg" id="confirmDeleteModal" aria-hidden="true">
   <div class="modal" style="width:min(520px,100%)">
     <div class="modal-head">
@@ -1289,9 +1319,29 @@ function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML=
      </div>
    </div>`})():'';
  const suppCopy=p.type==='ongoing'?'Add the employee’s weekly training activities. These items build an ongoing engagement history and never create a finish date.':'Add live training alongside the employee’s videos. These items appear in the weekly schedule but <b>do not change</b> the 1-video-per-business-day certification pace.';
- $('#content').innerHTML=`${pathTabs(e)}${trainingStageCardV44(e)}${managerActionStripV45(e)}<div class="employee-summary-v45">${overview}${progressBlock}</div><div class="details-zone-v46"><div class="details-heading-v45"><h3>More Details</h3><p>Open these only when you need deeper certification, activity, or manager-note information.</p></div>${p.type==='cert'?`<details class="detail-fold-v45"><summary>Certification Details</summary><div class="detail-fold-body-v45">${certMilestones}</div></details>`:''}<details class="detail-fold-v45"><summary>Recent Activity</summary><div class="detail-fold-body-v45">${recentActivityPanel(e)}</div></details><details class="detail-fold-v45"><summary>Training Manager Notes</summary><div class="detail-fold-body-v45">${coachingPanel(e)}</div></details></div><div class="panel primary-work-v45"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'This is the primary workspace for the employee’s ongoing development.':'This is the primary workspace for the employee’s Path to Certification. Videos follow the guided pace; supplemental activities do not move that pace.'}</p></div><div class="path-actions">${status}</div></div><div class="schedule-controls-v46">${trainingTimeSetting}${engagementToolsStripV47(e)}${groupCallAssignmentCopyV42(e)}</div>${note}<div class="supplemental-training-panel"><div class="supplemental-heading"><div><h4>${p.type==='ongoing'?'Add Ongoing Training':'Additional Training'}</h4><p>${suppCopy}</p></div><span class="supplemental-badge">${p.type==='ongoing'?'No finish date':'Does not affect video pace'}</span></div><div class="schedule-tools supplemental-actions"><button class="btn primary" id="addWebinarBtn">+ Webinar / Workshop</button><button class="btn" id="addSessionBtn">+ Training Item</button></div><div class="supplemental-help">${p.type==='ongoing'?'<b>Weekly Group Call:</b> assigned automatically and remains active during ongoing training. &nbsp; <b>Suggested libraries:</b> Master Series - Leadership & Personal Growth · Sales Fix LIVE Conference Recordings · Advanced training topics.':'<b>Weekly Group Call:</b> assigned automatically and continues across every training path. &nbsp; <b>Webinar / Workshop:</b> add a one-time live event on any date.'}</div></div><div class="table-wrap">${scheduleTable(p)}</div></div>`;
- $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindTrainingStageV44();const timeBtn=$('#savePathDailyTimeV34');if(timeBtn)timeBtn.onclick=()=>{const input=$('#pathDailyTimeV34');if(input?.value)updatePathDailyTrainingTime(input.value)};const zoneSelect=$('#displayTimeZoneV42');if(zoneSelect){zoneSelect.value=managerDisplayZoneV42();zoneSelect.onchange=()=>{setManagerDisplayZoneV42(zoneSelect.value);renderAll();showToast('Group Call display time zone updated')}};bindRecentActivity(e);bindSchedule(e,p);$('#addSessionBtn').onclick=openCustomTrainingModal;const addGroupCallBtn=$('#addGroupCallBtn');if(addGroupCallBtn)addGroupCallBtn.onclick=openGroupCallModal;$('#addWebinarBtn').onclick=openWebinarModal;
+ $('#content').innerHTML=`${pathTabs(e)}${trainingStageCardV44(e)}${managerActionStripV45(e)}<div class="employee-summary-v45">${overview}${progressBlock}</div><div class="support-tools-top-v48">${engagementToolsStripV47(e)}</div><div class="details-zone-v46"><div class="details-heading-v45"><h3>More Details</h3><p>Open these only when you need deeper certification, activity, or manager-note information.</p></div>${p.type==='cert'?`<details class="detail-fold-v45"><summary>Certification Details</summary><div class="detail-fold-body-v45">${certMilestones}</div></details>`:''}<details class="detail-fold-v45"><summary>Recent Activity</summary><div class="detail-fold-body-v45">${recentActivityPanel(e)}</div></details><details class="detail-fold-v45"><summary>Training Manager Notes</summary><div class="detail-fold-body-v45">${coachingPanel(e)}</div></details></div><div class="panel primary-work-v45"><div class="panel-head"><div><h3>Weekly Training Schedule</h3><p>${p.type==='ongoing'?'Ongoing weekly training and live activities.':'Certification videos and assigned live activities, organized by week.'}</p></div><div class="schedule-head-actions-v48">${status}<button class="btn" id="pathSettingsBtnV48" type="button">⚙ Path Settings</button><button class="btn primary" id="addTrainingBtnV48" type="button">+ Add Training</button></div></div>${note}<div class="table-wrap">${scheduleTable(p)}</div></div>`;
+ $$('.path-tab').forEach(b=>b.onclick=()=>{e.activePathId=b.dataset.path;persist();renderAll()});$('#inlineAddPath').onclick=openPathModal;bindTrainingStageV44();bindRecentActivity(e);bindSchedule(e,p);const settingsBtnV48=$('#pathSettingsBtnV48');if(settingsBtnV48)settingsBtnV48.onclick=openPathSettingsV48;const addTrainingBtnV48=$('#addTrainingBtnV48');if(addTrainingBtnV48)addTrainingBtnV48.onclick=openAddTrainingMenuV48;
 }
+function openPathSettingsV48(){
+ const e=active(),p=activePath(e);if(!e||!p)return;
+ const body=$('#pathSettingsBodyV48');if(!body)return;
+ const groupCall=groupCallAssignmentCopyV48(e);
+ body.innerHTML=`${p.type==='cert'?`<div class="field"><label>Daily Training Time</label><div class="two"><input id="pathDailyTimeV48" type="time" value="${esc(p.defaultTime||'08:00')}"><button class="btn" id="savePathDailyTimeV48" type="button">Update Time</button></div><div class="muted-note" style="margin-top:6px">Applied to every scheduled certification video. Changing it updates the time without moving the training dates.</div></div>`:''}<div class="field"><label>Group Call Time Zone</label><select id="displayTimeZoneV48"><option value="PT">Pacific</option><option value="MT">Mountain</option><option value="CT">Central</option><option value="ET">Eastern</option></select><div class="muted-note" style="margin-top:6px">Controls how Weekly Group Call times are displayed in this dashboard.</div></div>${groupCall}`;
+ const zone=$('#displayTimeZoneV48');if(zone){zone.value=managerDisplayZoneV42();zone.onchange=()=>{setManagerDisplayZoneV42(zone.value);renderScheduleTimeRefreshV48();showToast('Group Call display time zone updated')}}
+ const save=$('#savePathDailyTimeV48');if(save)save.onclick=()=>{const input=$('#pathDailyTimeV48');if(input?.value){closePathSettingsV48();updatePathDailyTrainingTime(input.value)}};
+ $('#pathSettingsModalV48').classList.add('show');
+}
+function groupCallAssignmentCopyV48(employee){
+ const result=learnWorldsGroupCallAssignmentV42(employee);
+ if(result.conflict)return `<div class="group-call-sync-v42 issue" style="margin:14px 0 0"><b>Weekly Group Call needs attention.</b> Multiple group-call assignments were found. The existing future schedule was left unchanged until the assignment is corrected.</div>`;
+ if(!result.assignment)return `<div class="group-call-sync-v42 attention" style="margin:14px 0 0"><b>No Weekly Group Call assigned.</b> No future group call is being added automatically.</div>`;
+ const day=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][result.assignment.weekday],zone=managerDisplayZoneV42(),local=shiftHourTimeV35(result.assignment.centralSession,GROUP_CALL_ZONE_OFFSETS[zone]??0);
+ return `<div class="path-settings-summary-v48"><div class="path-setting-summary-v48"><b>Weekly Group Call</b><span>${day} · ${displayTimeV35(local)} ${zone}</span></div><div class="path-setting-summary-v48"><b>Sales Fix Session</b><span>${displayTimeV35(result.assignment.centralSession)} Central</span></div></div>`;
+}
+function renderScheduleTimeRefreshV48(){renderAll();setTimeout(openPathSettingsV48,0)}
+function closePathSettingsV48(){const m=$('#pathSettingsModalV48');if(m)m.classList.remove('show')}
+function openAddTrainingMenuV48(){const m=$('#addTrainingMenuV48');if(m)m.classList.add('show')}
+function closeAddTrainingMenuV48(){const m=$('#addTrainingMenuV48');if(m)m.classList.remove('show')}
 function scheduleTable(p){const items=scheduleItems(p);let rows='',lastWeek='',weekIndex=0;for(const ev of items){const wk=weekKey(ev.date);if(wk!==lastWeek){lastWeek=wk;weekIndex++;rows+=`<tr class="week-row"><td colspan="9">${weekLabel(ev.date,weekIndex)}<span>${fmt(mondayOf(ev.date))}</span></td></tr>`}const supplemental=ev.kind!=='video';const completedCell=ev.kind==='call'?`<input class="check ev-call-complete" type="checkbox" ${ev.completed?'checked':''}>`:(ev.generated?'—':`<input class="check ev-complete" type="checkbox" ${ev.completed?'checked':''}>`);rows+=`<tr class="${supplemental?'supplemental-row':''}" data-event="${ev.id}" data-kind="${ev.kind}" data-config="${ev.configId||''}" data-date="${ev.date}"><td>${ev.generated?esc(fmt(ev.date)):`<input class="ev-date" type="date" value="${esc(ev.date)}">`}</td><td class="video-title">${esc(ev.title)}</td><td class="section-name">${esc(ev.section||'—')}</td><td><span class="type-pill ${typeClass(ev.kind)}">${typeLabel(ev.kind)}</span></td><td class="runtime">${esc(ev.duration||'—')}</td><td>${ev.kind==='call'&&ev.autoManaged?groupCallDisplayTimeV42(ev):esc(ev.time||'—')}</td><td class="check-cell">${completedCell}</td><td>${ev.generated?(ev.recurringCustom?'Recurring custom item':'Recurring call'):`<input class="notes ev-notes" type="text" placeholder="Add a note..." value="${esc(ev.notes)}">`}</td><td>${ev.generated?(ev.recurringCustom?`<button class="icon ev-delete-custom-rec" data-config="${ev.configId}" title="Remove recurring custom training item">×</button>`:(ev.autoManaged?`<span class="auto-lock-v42" title="Synced from Sales Fix">Synced</span>`:`<button class="icon ev-delete-call" data-config="${ev.configId}" title="Remove recurring weekly call">×</button>`)):`<button class="icon ev-delete" title="Delete">×</button>`}</td></tr>`}return`<table class="schedule"><thead><tr><th>Date</th><th>Training / Video</th><th>Section</th><th>Type</th><th>Runtime</th><th>Time</th><th>Completed</th><th>Notes</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="9" style="padding:24px;color:#98a2b3">No training scheduled yet.</td></tr>'}</tbody></table>`}
 function bindSchedule(e,p){$$('tr[data-event]').forEach(tr=>{const kind=tr.dataset.kind;const customRecBtn=tr.querySelector('.ev-delete-custom-rec');if(customRecBtn){customRecBtn.onclick=()=>{const id=customRecBtn.dataset.config;if(confirm('Remove this recurring custom training item from the entire training path?')){p.recurringCustoms=p.recurringCustoms.filter(x=>x.id!==id);persist();renderAll();showToast('Recurring custom training removed')}};return}if(kind==='call'){const cfg=p.weeklyCalls.find(x=>x.id===tr.dataset.config);const c=tr.querySelector('.ev-call-complete');if(c&&cfg)c.onchange=x=>{cfg.completedDates=Array.isArray(cfg.completedDates)?cfg.completedDates:[];const day=tr.dataset.date;if(x.target.checked){if(!cfg.completedDates.includes(day))cfg.completedDates.push(day)}else{cfg.completedDates=cfg.completedDates.filter(d=>d!==day)}persist();renderAll();showToast(x.target.checked?'Weekly Group Call marked complete':'Weekly Group Call marked incomplete')};const btn=tr.querySelector('.ev-delete-call');if(btn)btn.onclick=()=>{const id=btn.dataset.config;if(confirm('Remove this Weekly Group Call from the entire training path?')){p.weeklyCalls=p.weeklyCalls.filter(x=>x.id!==id);persist();renderAll();showToast('Weekly Group Call removed')}};return}let collection=kind==='webinar'?p.webinars:p.events;const ev=collection.find(x=>x.id===tr.dataset.event);if(!ev)return;const dateInput=tr.querySelector('.ev-date');if(dateInput)dateInput.onchange=x=>{if(!x.target.value)return;ev.date=x.target.value;if(p.type==='cert'&&kind==='video'){reflowCertFrom(p,ev.id);persist();renderAll();showToast('Video date updated · remaining videos rescheduled')}else{persist();renderAll();showToast('Date updated without changing video pace')}};const c=tr.querySelector('.ev-complete');if(c)c.onchange=x=>{ev.completed=x.target.checked;persist();renderAll()};const f=tr.querySelector('.ev-fix');if(f)f.onchange=x=>{ev.fixMyCall=x.target.checked;persist();renderRoster();showToast('Fix My Call updated')};const t=tr.querySelector('.ev-trainer');if(t)t.onchange=x=>{ev.callTrainer=x.target.checked;persist();renderRoster();showToast('Call a Trainer updated')};const n=tr.querySelector('.ev-notes');if(n)n.oninput=x=>{ev.notes=x.target.value;persist()};const d=tr.querySelector('.ev-delete');if(d)d.onclick=()=>{if(kind==='webinar')p.webinars=p.webinars.filter(x=>x.id!==ev.id);else p.events=p.events.filter(x=>x.id!==ev.id);persist();renderAll()}})}
 let pendingDeleteAction=null;
@@ -1414,7 +1464,7 @@ function groupCallAssignmentCopyV42(employee){
   const day=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][result.assignment.weekday];
   const zone=managerDisplayZoneV42();
   const local=shiftHourTimeV35(result.assignment.centralSession,GROUP_CALL_ZONE_OFFSETS[zone]??0);
-  return `<div class="group-call-sync-v42"><b>Weekly Group Call:</b> ${day} · ${displayTimeV35(local)} ${zone} <span style="color:#8391a0">(${displayTimeV35(result.assignment.centralSession)} Central)</span>. Use the Group Call Time Zone setting above to control how this time is displayed. The assigned call itself is managed by Sales Fix.</div>`;
+  return `<div class="group-call-sync-v42"><b>Weekly Group Call:</b> ${day} · ${displayTimeV35(local)} ${zone} <span style="color:#8391a0">(${displayTimeV35(result.assignment.centralSession)} Central)</span>. Use Path Settings to control how this time is displayed. The assigned call itself is managed by Sales Fix.</div>`;
 }
 
 
@@ -3719,6 +3769,13 @@ document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));docume
     if(btn)btn.onclick=function(){if(typeof setDashboardView==='function')setDashboardView('reports');if(typeof renderRoster==='function')renderRoster();reportShellV36()};
   });
 })();
+
+document.addEventListener('click',function(ev){
+ if(ev.target.closest('#closePathSettingsV48')||ev.target.closest('#donePathSettingsV48')){closePathSettingsV48();return}
+ if(ev.target.closest('#closeAddTrainingV48')){closeAddTrainingMenuV48();return}
+ if(ev.target.closest('#addTrainingWebinarV48')){closeAddTrainingMenuV48();openWebinarModal();return}
+ if(ev.target.closest('#addTrainingItemV48')){closeAddTrainingMenuV48();openCustomTrainingModal();return}
+});
 </script>
 
 </body>
