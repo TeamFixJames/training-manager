@@ -1408,9 +1408,64 @@ function removeSelectedPath(){
     }
   );
 }
-function openEmployeeModal(id=null){editingId=id;const e=id?db.employees.find(x=>x.id===id):null;$('#modalTitle').textContent=e?'Employee Settings':'Add Employee';$('#saveEmployeeBtn').textContent=e?'Save Changes':'Add Employee';$('#empName').value=e?.name||'';$('#mgrName').value=e?.manager||'';$('#empName').readOnly=!!e?.learnWorldsManaged;$('#mgrName').readOnly=!!e?.learnWorldsManaged;$('#empStart').value=iso(normalizeStart(iso(new Date())));$('#empTime').value='08:00';$$('input[name="path"]').forEach(r=>r.checked=r.value==='cert');const pathField=$$('input[name="path"]')[0]?.closest('.field');if(pathField)pathField.style.display=e?'none':'block';$('#certHint').textContent=e?'Training paths are managed separately using “Add Training Path.”':`Path to Certification contains ${certVideos.length} videos totaling ${formatSeconds(totalCertSeconds)}. At one video per business day, it spans ${Math.ceil(certVideos.length/5)} training weeks.`;$('#employeeModal').classList.add('show')}
+function openEmployeeModal(id=null){
+  editingId=id;
+  const e=id?db.employees.find(x=>x.id===id):null;
+  const current=e?activePath(e):null;
+  $('#modalTitle').textContent=e?'Employee Settings':'Add Employee';
+  $('#saveEmployeeBtn').textContent=e?'Save Changes':'Add Employee';
+  $('#empName').value=e?.name||'';
+  $('#mgrName').value=e?.manager||'';
+  $('#empName').readOnly=!!e?.learnWorldsManaged;
+  $('#mgrName').readOnly=!!e?.learnWorldsManaged;
+  // Employee Settings edits the currently selected training path's schedule settings.
+  $('#empStart').value=current?.startDate||iso(normalizeStart(iso(new Date())));
+  $('#empTime').value=current?.defaultTime||'08:00';
+  $$('input[name="path"]').forEach(r=>r.checked=r.value==='cert');
+  const pathField=$$('input[name="path"]')[0]?.closest('.field');
+  if(pathField)pathField.style.display=e?'none':'block';
+  $('#certHint').textContent=e?(current?`These settings apply to the currently selected ${pathName(current.type)} path.`:'Training paths are managed separately using “Add Training Path.”'):`Path to Certification contains ${certVideos.length} videos totaling ${formatSeconds(totalCertSeconds)}. At one video per business day, it spans ${Math.ceil(certVideos.length/5)} training weeks.`;
+  $('#employeeModal').classList.add('show')
+}
 function closeEmployeeModal(){$('#employeeModal').classList.remove('show')}
-function saveEmployee(){const name=$('#empName').value.trim();if(!name){alert('Please enter an employee name.');return}const manager=$('#mgrName').value.trim();if(editingId){const e=db.employees.find(x=>x.id===editingId);if(!e.learnWorldsManaged){e.name=name;e.manager=manager}db.activeId=e.id;persist()}else{const start=$('#empStart').value,time=$('#empTime').value||'08:00',type=$('input[name="path"]:checked').value,p=makePath(type,start,time);const e={id:uid(),name,manager,paths:[p],activePathId:p.id};db.employees.push(e);db.activeId=e.id;persist()}closeEmployeeModal();renderAll();showToast(editingId?'Employee updated':'Employee added')}
+function updatePathStartFromEmployeeSettingsV46(p,newStart){
+  if(!p||!newStart||p.startDate===newStart)return false;
+  p.startDate=newStart;
+  if(p.type==='cert'){
+    // Keep the existing video records/completion history, but rebuild their dates
+    // from the new path start at the standard one-video-per-business-day pace.
+    const videos=(p.events||[]).filter(x=>(x.kind||'video')==='video').slice().sort((a,b)=>a.date.localeCompare(b.date)||String(a.time||'').localeCompare(String(b.time||'')));
+    const first=normalizeStart(newStart);
+    videos.forEach((ev,i)=>{ev.date=iso(addBusinessDays(first,i))});
+  }
+  return true;
+}
+function saveEmployee(){
+  const name=$('#empName').value.trim();
+  if(!name){alert('Please enter an employee name.');return}
+  const manager=$('#mgrName').value.trim();
+  if(editingId){
+    const e=db.employees.find(x=>x.id===editingId);
+    if(!e)return;
+    if(!e.learnWorldsManaged){e.name=name;e.manager=manager}
+    const p=activePath(e);
+    if(p){
+      ensurePathExtras(p);
+      const newStart=$('#empStart').value||p.startDate;
+      const newTime=$('#empTime').value||p.defaultTime||'08:00';
+      updatePathStartFromEmployeeSettingsV46(p,newStart);
+      p.defaultTime=newTime;
+      for(const event of p.events||[]){if((event.kind||'video')==='video')event.time=newTime}
+    }
+    db.activeId=e.id;
+    persist();
+  }else{
+    const start=$('#empStart').value,time=$('#empTime').value||'08:00',type=$('input[name="path"]:checked').value,p=makePath(type,start,time);
+    const e={id:uid(),name,manager,paths:[p],activePathId:p.id};
+    db.employees.push(e);db.activeId=e.id;persist()
+  }
+  closeEmployeeModal();renderAll();showToast(editingId?'Employee updated':'Employee added')
+}
 let initialCertificationSetupV43=false;
 function openPathModal(){
   const e=active();if(!e)return;
