@@ -611,6 +611,37 @@
 .add-training-choice-v48 span{display:block;font-size:10px;color:#718196;line-height:1.45;margin-top:4px}
 @media(max-width:760px){.schedule-head-actions-v48{margin-top:8px}.path-settings-summary-v48{grid-template-columns:1fr}}
 </style>
+
+<style id="visual-hierarchy-v53">
+/* v53: visual language for employee/path workspace */
+:root{--ui-navy:#183b5b;--ui-blue:#2563eb;--ui-green:#16803c;--ui-green-bg:#edf8f1;--ui-amber:#a8640d;--ui-amber-bg:#fff7e8;--ui-red:#b42318;--ui-red-bg:#fff1f0;--ui-purple:#6941c6;--ui-purple-bg:#f5f0ff;--ui-teal:#087f8c;--ui-teal-bg:#ecf9f8}
+/* Path identity */
+#content[data-path-type="cert"] .path-tab.active{border-color:#7aa7d9;background:#eef6ff;box-shadow:inset 0 3px 0 #2563eb}
+#content[data-path-type="ongoing"] .path-tab.active{border-color:#87c9c3;background:#edf9f7;box-shadow:inset 0 3px 0 #087f8c}
+#content[data-path-type="custom"] .path-tab.active{border-color:#c5b5ed;background:#f7f3ff;box-shadow:inset 0 3px 0 #6941c6}
+.path-tab{transition:border-color .15s,background .15s,box-shadow .15s}.path-tab:hover{border-color:#aeb9c7;background:#fafbfc}
+/* Status hierarchy */
+.training-stage-v44{position:relative}.training-stage-v44:before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#6aa5d4}
+#content[data-path-type="ongoing"] .training-stage-v44:before{background:#45b5aa}
+#content[data-path-type="custom"] .training-stage-v44:before{background:#9b7bd8}
+.manager-action-v45{border-left-width:4px!important}.manager-action-v45:not(.attention):not(.urgent){border-left-color:var(--ui-green)!important}.manager-action-v45.attention{border-left-color:#d98b1d!important}.manager-action-v45.urgent{border-left-color:var(--ui-red)!important}
+.manager-action-v45:not(.attention):not(.urgent) .action-icon{background:#dff2e6;color:var(--ui-green)}.manager-action-v45.attention .action-icon{background:#ffebc8;color:#9a5c0b}.manager-action-v45.urgent .action-icon{background:#ffdeda;color:var(--ui-red)}
+/* At-a-glance stats: neutral cards with meaningful accents */
+.employee-summary-v45 .stat{position:relative;overflow:hidden}.employee-summary-v45 .stat:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#d5dde7}.employee-summary-v45 .stat strong{color:#172b3e}.employee-summary-v45 .progress-wrap{border-left:4px solid var(--ui-green)}
+/* Support tools get a distinct identity */
+.sales-fix-tools-v47{border:1px solid #ddd5f1!important;border-left:4px solid var(--ui-purple)!important;background:#faf8ff!important}.sales-fix-tools-head-v47 b{color:#51349a!important}.support-tool-v47{border-color:#ded7ef!important}.support-tool-v47:hover{border-color:#a992dc!important;background:#fdfcff!important}.support-tool-name-v47,.support-tool-v47 i{color:#5d3eb0!important}.support-tool-v47 i{background:var(--ui-purple-bg);padding:4px 7px;border-radius:999px}
+/* Secondary details recede */
+.details-zone-v46{background:#f6f8fa!important;border-color:#e3e8ee!important}.details-heading-v45 h3{color:#475467!important}.detail-fold-v45 summary{color:#475467!important}.detail-fold-v45[open]{border-color:#cfd8e2}.detail-fold-v45[open] summary{background:#eef3f7!important;color:#24445f!important}
+/* Schedule becomes the primary work surface */
+.primary-work-v45{border:1px solid #cfdce8!important;border-top:4px solid var(--ui-blue)!important;box-shadow:0 7px 22px rgba(24,59,91,.08)!important}.primary-work-v45>.panel-head{background:linear-gradient(90deg,#edf5fc,#f8fbfd)!important;padding:16px 18px!important}.primary-work-v45>.panel-head h3{font-size:16px!important}.primary-work-v45 .schedule th{background:#f3f6f9;color:#536273}.week-row td{background:#e9eff5!important;color:#183b5b!important;border-top:1px solid #cad6e2!important}.section-row td{background:#f7f9fb!important}
+/* Training types: icon + color = redundant visual cue */
+.type-pill{display:inline-flex!important;align-items:center;gap:4px;padding:5px 8px!important;border:1px solid transparent}.type-pill:before{font-size:9px;line-height:1}.type-video{background:#eef5ff!important;color:#245da8!important;border-color:#d5e5fb!important}.type-video:before{content:'▶'}.type-call{background:#eaf8f6!important;color:#08776f!important;border-color:#c9ebe6!important}.type-call:before{content:'●'}.type-webinar{background:#f4efff!important;color:#6941c6!important;border-color:#dfd4f7!important}.type-webinar:before{content:'◆'}.type-custom{background:#f2f4f7!important;color:#475467!important;border-color:#e0e4e9!important}.type-custom:before{content:'+'}
+/* Completed rows become quieter while completion itself remains obvious */
+.schedule tr:has(.check:checked) td:not(.week-row td):not(.section-row td){background:#fbfcfb;color:#667085}.schedule tr:has(.check:checked) .video-title{text-decoration:line-through;text-decoration-color:#aeb8b2;color:#667085}.schedule tr:has(.check:checked) .type-pill{opacity:.72}.check{accent-color:var(--ui-green)}
+/* Buttons: settings secondary, adding training primary */
+#pathSettingsBtnV48{background:#fff;color:#475467;border-color:#cfd8e2}#addTrainingBtnV48{background:var(--ui-blue);border-color:var(--ui-blue);color:#fff}.primary-work-v45 .status-pill.done{background:var(--ui-green-bg);color:var(--ui-green)}
+@media(max-width:760px){.primary-work-v45>.panel-head{align-items:flex-start!important}.schedule-head-actions-v48{width:100%}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1188,7 +1219,7 @@ function logSupportUseV47(type){
  e.engagement[type==='fix'?'fix':'trainer'].push({date:dt,note});persist();renderAll();showToast(type==='fix'?'Fix My Call use logged':'Call a Trainer use logged');
 }
 function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML='<div class="empty"><div><h3>Set Up Path to Certification</h3><p>Every new employee begins with Path to Certification. Choose their start date and normal daily training time to build the guided certification schedule.</p><button class="btn primary" onclick="openPathModal()">Set Up Path to Certification</button></div></div>';return}
- ensurePathExtras(p);const core=progressEvents(p),completed=core.filter(x=>x.completed).length,pct=pathPct(p);
+ ensurePathExtras(p);$('#content').setAttribute('data-path-type',p.type||'custom');const core=progressEvents(p),completed=core.filter(x=>x.completed).length,pct=pathPct(p);
  const certReadinessForProgress=p.type==='cert'?(e.certification?.level1||null):null;
  const certExamsForProgress=p.type==='cert'?(Array.isArray(e.certification?.sectionExams)?e.certification.sectionExams:[]):[]; 
  const certVideoTotalForProgress=Number(certReadinessForProgress?.requiredVideoCount||core.length||0);
