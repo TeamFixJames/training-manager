@@ -20,6 +20,35 @@ async function getAuthenticatedManager() {
   return session.user.email.toLowerCase();
 }
 
+
+async function fetchUserCourses(userId) {
+  const response = await fetch(
+    `${process.env.LW_API_URL}/users/${encodeURIComponent(
+      userId
+    )}/courses`,
+    {
+      headers,
+      cache: 'no-store'
+    }
+  );
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    const error = new Error(
+      payload?.error ||
+        `User course enrollment request failed (${response.status})`
+    );
+
+    error.status = response.status;
+    error.details = payload;
+
+    throw error;
+  }
+
+  return payload;
+}
+
 async function fetchAllProgress(userId) {
   const courses = [];
   let page = 1;
@@ -952,6 +981,66 @@ export async function POST(request) {
       );
 
     /*
+     * TEMPORARY DIAGNOSTIC #2:
+     * Fetch the user's course-enrollment records so we can
+     * inspect the exact fields LearnWorlds returns for the
+     * Foundations course. This is intentionally temporary.
+     */
+    const userCoursesPayload =
+      await fetchUserCourses(
+        employeeId
+      );
+
+    const userCourseRecords =
+      Array.isArray(userCoursesPayload?.data)
+        ? userCoursesPayload.data
+        : Array.isArray(userCoursesPayload?.data?.courses)
+          ? userCoursesPayload.data.courses
+          : Array.isArray(userCoursesPayload?.courses)
+            ? userCoursesPayload.courses
+            : [];
+
+    const foundationsEnrollment =
+      userCourseRecords.find((record) => {
+        const possibleCourseId =
+          record?.course_id ||
+          record?.courseId ||
+          record?.id ||
+          record?.course?.id ||
+          '';
+
+        return String(possibleCourseId) === 'foundations';
+      }) || null;
+
+    const foundationsEnrollmentDebug = {
+      payloadFields:
+        userCoursesPayload &&
+        typeof userCoursesPayload === 'object'
+          ? Object.keys(userCoursesPayload)
+          : [],
+
+      recordCount:
+        userCourseRecords.length,
+
+      foundationsFound:
+        Boolean(foundationsEnrollment),
+
+      availableFields:
+        foundationsEnrollment &&
+        typeof foundationsEnrollment === 'object'
+          ? Object.keys(foundationsEnrollment)
+          : [],
+
+      enrollmentRecord:
+        foundationsEnrollment
+    };
+
+    console.log(
+      'Foundations enrollment diagnostic:',
+      foundationsEnrollmentDebug
+    );
+
+    /*
      * TEMPORARY DIAGNOSTIC:
      * Inspect the course-level data LearnWorlds returns
      * for the Foundations course so we can determine
@@ -1366,6 +1455,7 @@ if (
         newlyCompleted,
 
         foundationsCourseDebug,
+        foundationsEnrollmentDebug,
 
         sectionExams,
 
@@ -1399,6 +1489,7 @@ if (
       newlyCompleted: 0,
 
       foundationsCourseDebug,
+      foundationsEnrollmentDebug,
 
       sectionExams,
 
