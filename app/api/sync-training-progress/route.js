@@ -980,116 +980,131 @@ export async function POST(request) {
         employeeId
       );
 
+    let changed = false;
+
     /*
-     * TEMPORARY DIAGNOSTIC #2:
-     * Fetch the user's course-enrollment records so we can
-     * inspect the exact fields LearnWorlds returns for the
-     * Foundations course. This is intentionally temporary.
+     * HISTORICAL SALES FIX ENROLLMENT DATE
+     * ------------------------------------
+     * For employees who do not yet have a Path to Certification,
+     * use the created timestamp from their enrollment in the
+     * Foundations course as the recommended Certification start date.
+     *
+     * Once found, save it into Training Manager state so future
+     * dashboard loads do not need another LearnWorlds course lookup.
      */
-    const userCoursesPayload =
-      await fetchUserCourses(
-        employeeId
+    const hasCertificationPath =
+      Array.isArray(state?.paths) &&
+      state.paths.some(
+        (path) => path?.type === 'cert'
       );
 
-    const userCourseRecords =
-      Array.isArray(userCoursesPayload?.data)
-        ? userCoursesPayload.data
-        : Array.isArray(userCoursesPayload?.data?.courses)
-          ? userCoursesPayload.data.courses
-          : Array.isArray(userCoursesPayload?.courses)
-            ? userCoursesPayload.courses
-            : [];
+    const existingSalesFixEnrollmentDate =
+      String(
+        state?.salesFixEnrollmentDate || ''
+      ).trim();
 
-    const foundationsEnrollment =
-      userCourseRecords.find((record) => {
-        const possibleCourseId =
-          record?.course_id ||
-          record?.courseId ||
-          record?.id ||
-          record?.course?.id ||
-          '';
+    const lastEnrollmentLookupMs =
+      state?.salesFixEnrollmentLookupCheckedAt
+        ? Date.parse(
+            state.salesFixEnrollmentLookupCheckedAt
+          )
+        : NaN;
 
-        return String(possibleCourseId) === 'foundations';
-      }) || null;
+    const enrollmentLookupIsFresh =
+      Number.isFinite(lastEnrollmentLookupMs) &&
+      Date.now() - lastEnrollmentLookupMs <
+        24 * 60 * 60 * 1000;
 
-    const foundationsEnrollmentDebug = {
-      payloadFields:
-        userCoursesPayload &&
-        typeof userCoursesPayload === 'object'
-          ? Object.keys(userCoursesPayload)
-          : [],
+    if (
+      !hasCertificationPath &&
+      !existingSalesFixEnrollmentDate &&
+      !enrollmentLookupIsFresh
+    ) {
+      try {
+        const userCoursesPayload =
+          await fetchUserCourses(
+            employeeId
+          );
 
-      recordCount:
-        userCourseRecords.length,
+        const userCourseRecords =
+          Array.isArray(userCoursesPayload?.data)
+            ? userCoursesPayload.data
+            : Array.isArray(
+                userCoursesPayload?.data?.courses
+              )
+              ? userCoursesPayload.data.courses
+              : Array.isArray(
+                  userCoursesPayload?.courses
+                )
+                ? userCoursesPayload.courses
+                : [];
 
-      foundationsFound:
-        Boolean(foundationsEnrollment),
+        const foundationsEnrollment =
+          userCourseRecords.find((record) => {
+            const possibleCourseId =
+              record?.course_id ||
+              record?.courseId ||
+              record?.id ||
+              record?.course?.id ||
+              '';
 
-      availableFields:
-        foundationsEnrollment &&
-        typeof foundationsEnrollment === 'object'
-          ? Object.keys(foundationsEnrollment)
-          : [],
+            return (
+              String(possibleCourseId) ===
+              'foundations'
+            );
+          }) || null;
 
-      enrollmentRecord:
-        foundationsEnrollment
-    };
+        const createdTimestamp =
+          Number(
+            foundationsEnrollment?.created
+          );
 
-    console.log(
-      'Foundations enrollment diagnostic:',
-      foundationsEnrollmentDebug
-    );
+        if (
+          Number.isFinite(createdTimestamp) &&
+          createdTimestamp > 0
+        ) {
+          const createdDate =
+            new Date(
+              createdTimestamp * 1000
+            );
 
-    /*
-     * TEMPORARY DIAGNOSTIC:
-     * Inspect the course-level data LearnWorlds returns
-     * for the Foundations course so we can determine
-     * whether an enrollment/start date is already present.
-     */
-    const foundationsCourse =
-      courses.find(
-        (course) =>
-          String(course?.course_id || '') ===
-          'foundations'
-      ) || null;
+          if (!Number.isNaN(createdDate.getTime())) {
+            state.salesFixEnrollmentDate =
+              createdDate
+                .toISOString()
+                .slice(0, 10);
 
-    const foundationsCourseDebug =
-      foundationsCourse
-        ? {
-            courseId:
-              foundationsCourse.course_id || null,
+            state.salesFixEnrollmentCreatedAt =
+              createdDate.toISOString();
 
-            availableFields:
-              Object.keys(foundationsCourse),
+            state.salesFixEnrollmentSource =
+              'foundations_course_enrollment';
 
-            enrollmentDate:
-              foundationsCourse.enrollment_date ||
-              foundationsCourse.enrolled_at ||
-              foundationsCourse.enrollmentDate ||
-              foundationsCourse.enrolledAt ||
-              null,
-
-            createdAt:
-              foundationsCourse.created_at ||
-              foundationsCourse.createdAt ||
-              null,
-
-            startedAt:
-              foundationsCourse.started_at ||
-              foundationsCourse.startedAt ||
-              null,
-
-            lastAccessedAt:
-              foundationsCourse.last_accessed_at ||
-              foundationsCourse.lastAccessedAt ||
-              null
+            changed = true;
           }
-        : null;
+        }
 
-    console.log(
-      'Foundations course diagnostic:',
-      foundationsCourseDebug
-    );
+        state.salesFixEnrollmentLookupCheckedAt =
+          new Date().toISOString();
+
+        state.salesFixEnrollmentFound =
+          Boolean(
+            state.salesFixEnrollmentDate
+          );
+
+        changed = true;
+      } catch (enrollmentError) {
+        /*
+         * A recommended historical start date is helpful, but
+         * failure to retrieve it should not block the normal
+         * training-progress sync.
+         */
+        console.error(
+          'Sales Fix enrollment lookup failed:',
+          enrollmentError
+        );
+      }
+    }
 
     const activities =
       flattenActivities(
@@ -1113,7 +1128,6 @@ export async function POST(request) {
           )
       );
 
-    let changed = false;
     let matchedVideos = 0;
     let newlyMapped = 0;
     let newlyCompleted = 0;
@@ -1454,9 +1468,6 @@ if (
         newlyMapped,
         newlyCompleted,
 
-        foundationsCourseDebug,
-        foundationsEnrollmentDebug,
-
         sectionExams,
 
         level1:
@@ -1487,9 +1498,6 @@ if (
       matchedVideos,
       newlyMapped: 0,
       newlyCompleted: 0,
-
-      foundationsCourseDebug,
-      foundationsEnrollmentDebug,
 
       sectionExams,
 
