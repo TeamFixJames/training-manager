@@ -955,7 +955,55 @@ export async function POST(request) {
       flattenActivities(
         courses
       );
+* TEMPORARY DIAGNOSTIC:
+ * Inspect the course-level data LearnWorlds returns
+ * for the Foundations course so we can determine
+ * whether an enrollment/start date is already present.
+ */
+const foundationsCourse =
+  courses.find(
+    (course) =>
+      String(course?.course_id || '') ===
+      'foundations'
+  ) || null;
 
+const foundationsCourseDebug =
+  foundationsCourse
+    ? {
+        courseId:
+          foundationsCourse.course_id || null,
+
+        availableFields:
+          Object.keys(foundationsCourse),
+
+        enrollmentDate:
+          foundationsCourse.enrollment_date ||
+          foundationsCourse.enrolled_at ||
+          foundationsCourse.enrollmentDate ||
+          foundationsCourse.enrolledAt ||
+          null,
+
+        createdAt:
+          foundationsCourse.created_at ||
+          foundationsCourse.createdAt ||
+          null,
+
+        startedAt:
+          foundationsCourse.started_at ||
+          foundationsCourse.startedAt ||
+          null,
+
+        lastAccessedAt:
+          foundationsCourse.last_accessed_at ||
+          foundationsCourse.lastAccessedAt ||
+          null
+      }
+    : null;
+
+console.log(
+  'Foundations course diagnostic:',
+  foundationsCourseDebug
+);
     const byUnitId =
       new Map(
         activities
@@ -1313,6 +1361,10 @@ if (
         matchedVideos,
         newlyMapped,
         newlyCompleted,
+        
+        foundationsCourseDebug,
+
+  
 
         sectionExams,
 
@@ -1344,6 +1396,9 @@ if (
       matchedVideos,
       newlyMapped: 0,
       newlyCompleted: 0,
+      
+      foundationsCourseDebug,
+
 
       sectionExams,
 
