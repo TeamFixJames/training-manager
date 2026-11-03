@@ -3,7 +3,7 @@ import { auth0 } from '../../../lib/auth0';
 import { db } from '../../../lib/db';
 
 // Temporary, read-only diagnostic. Remove after testing.
-const LEARNER_ID = '6ac0062aa60767a63809258f';
+const LEARNER_ID = '669551ced2d38f8d1b022966';
 const COURSE_ID = 'fixmycall';
 const UNIT_ID = '662a798fbd2fd0673a0fe340Unit';
 
