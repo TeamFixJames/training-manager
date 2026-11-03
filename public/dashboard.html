@@ -684,6 +684,20 @@
 .fmc-feedback-body-v56 h1,.fmc-feedback-body-v56 h2,.fmc-feedback-body-v56 h3{font-size:13px;margin:12px 0 6px;color:#183b5b}
 .fmc-feedback-body-v56 strong,.fmc-feedback-body-v56 b{font-weight:800}
 @media(max-width:700px){.fmc-archive-entry-v54{grid-template-columns:1fr}}
+
+/* v58: match the Advisor Support Tools purple visual identity */
+.fmc-archive-v54{border-color:#ddd5f1;border-left:4px solid #6941c6;background:#fff}
+.fmc-archive-head-v54{background:#f5f0ff;border-bottom-color:#ddd5f1;color:#51349a}
+.fmc-archive-head-v54 span{color:#7058a2}
+.fmc-archive-entry-v54{border-bottom-color:#eee8f8}
+.fmc-archive-entry-v54>div:first-child b{color:#51349a}
+.fmc-archive-entry-v54 a{color:#5d3eb0}
+.fmc-feedback-v56{border-color:#ddd5f1}
+.fmc-feedback-v56 summary{background:#faf8ff;color:#51349a}
+.fmc-feedback-v56 summary:hover{background:#f5f0ff}
+.fmc-feedback-v56 summary:after{color:#6941c6}
+.fmc-feedback-v56[open] summary{background:#f5f0ff;border-bottom-color:#ddd5f1}
+.fmc-feedback-body-v56 h1,.fmc-feedback-body-v56 h2,.fmc-feedback-body-v56 h3{color:#51349a}
 </style>
 </head>
 <body>
@@ -1308,7 +1322,7 @@ function engagementToolsStripV47(e){
  const month=new Date().toISOString().slice(0,7);
  const thisMonth=rows.filter(x=>String(x.submitted_at||'').slice(0,7)===month).length;
  const status=!archive?'Loading archived submissions…':archive.error?'Unable to load archive':`${rows.length} archived submission${rows.length===1?'':'s'} · ${thisMonth} this month`;
- return `<div class="sales-fix-tools-v47"><div class="sales-fix-tools-head-v47"><div><b>Advisor Support Tools</b><span>Available throughout the employee’s Sales Fix training journey.</span></div></div><div class="sales-fix-tools-grid-v47"><div class="support-tool-v47" style="cursor:default"><span class="support-tool-name-v47">Fix My Call · Automatic</span><strong>${status}</strong><small>Synced daily from LearnWorlds. View dates, grades, feedback and recordings below.</small></div><button class="support-tool-v47" type="button" onclick="logSupportUseV47('trainer')"><span class="support-tool-name-v47">Call a Trainer</span><strong>${trainer.length} total use${trainer.length===1?'':'s'}</strong><small>${lastTrainer?'Last used '+fmt(lastTrainer.date):'No uses recorded yet'}</small><i>+ Log Use</i></button></div></div><div id="fixMyCallArchivePanelV54" class="fmc-archive-v54">${renderFixMyCallArchiveV54(e)}</div>`;
+ return `<div class="sales-fix-tools-v47"><div class="sales-fix-tools-head-v47"><div><b>Advisor Support Tools</b><span>Available throughout the employee’s Sales Fix training journey.</span></div></div><div class="sales-fix-tools-grid-v47"><div class="support-tool-v47" style="cursor:default"><span class="support-tool-name-v47">Fix My Call · Automatic</span><strong>${status}</strong><small>Updated daily. View submission dates, grades, feedback, and recordings below.</small></div><button class="support-tool-v47" type="button" onclick="logSupportUseV47('trainer')"><span class="support-tool-name-v47">Call a Trainer</span><strong>${trainer.length} total use${trainer.length===1?'':'s'}</strong><small>${lastTrainer?'Last used '+fmt(lastTrainer.date):'No uses recorded yet'}</small><i>+ Log Use</i></button></div></div><div id="fixMyCallArchivePanelV54" class="fmc-archive-v54">${renderFixMyCallArchiveV54(e)}</div>`;
 }
 
 function logSupportUseV47(type){
