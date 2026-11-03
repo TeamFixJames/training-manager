@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth0 } from '../../../lib/auth0';
 import { db } from '../../../lib/db';
 
-// Pilot activity. Add the other two activity IDs after this one is verified.
+// Pilot activity. Add other activity IDs after this one is verified.
 const ACTIVITY_UNIT_ID = '662a798fbd2fd0673a0fe340';
 const MAX_PAGES = 100;
 
@@ -56,6 +56,13 @@ async function getAllSubmissions(employeeId) {
       },
       cache: 'no-store'
     });
+
+    if (response.status === 404 && page === 1) {
+      // LearnWorlds has returned 404 for known employees who have never
+      // submitted this activity. Confirm this behavior against your school
+      // before treating it as definitive; see API response flag below.
+      return { submissions: [], emptyResponseWas404: true };
+    }
     if (!response.ok) {
       throw new Error(`LearnWorlds submission request failed (${response.status})`);
     }
@@ -68,54 +75,46 @@ async function getAllSubmissions(employeeId) {
     if (!Number.isFinite(totalPages) || totalPages < 1) {
       throw new Error('Invalid LearnWorlds pagination metadata');
     }
-    if (page >= totalPages) return submissions;
+    if (page >= totalPages) return { submissions, emptyResponseWas404: false };
   }
   throw new Error('LearnWorlds submission pagination exceeded safety limit');
 }
 
-async function authorizedManagerForEmployee(employeeId) {
-  const session = await auth0.getSession();
-  const managerEmail = String(session?.user?.email || '').trim().toLowerCase();
-  if (!managerEmail) return { error: errorResponse('Not authenticated', 401) };
-
+async function checkOwnership(managerEmail, employeeId) {
   const ownership = await db.query(
     `SELECT 1 FROM training_manager_state
      WHERE manager_email = $1 AND employee_lw_id = $2 LIMIT 1`,
     [managerEmail, employeeId]
   );
-  if (!ownership.rowCount) {
-    return { error: errorResponse('Employee not found for this manager', 404) };
-  }
-  return { managerEmail };
+  return Boolean(ownership.rowCount);
 }
 
-// Read previously archived submissions from PostgreSQL only.
-// This does not call LearnWorlds or change any stored records.
+async function archivedSubmissions(employeeId) {
+  return db.query(
+    `SELECT submission_id, activity_unit_id, submitted_at, grade, passed,
+            trainer_feedback, audio_url, audio_filename, first_saved_at, last_synced_at
+     FROM training_manager_fix_my_call_submissions
+     WHERE employee_lw_id = $1 AND activity_unit_id = $2
+     ORDER BY submitted_at DESC NULLS LAST, first_saved_at DESC`,
+    [employeeId, ACTIVITY_UNIT_ID]
+  );
+}
+
 export async function GET(request) {
   try {
-    const url = new URL(request.url);
-    const employeeId = String(url.searchParams.get('employeeId') || '').trim();
+    const session = await auth0.getSession();
+    const managerEmail = String(session?.user?.email || '').trim().toLowerCase();
+    if (!managerEmail) return errorResponse('Not authenticated', 401);
+    const employeeId = String(new URL(request.url).searchParams.get('employeeId') || '').trim();
     if (!employeeId) return errorResponse('employeeId is required', 400);
-
-    const authorization = await authorizedManagerForEmployee(employeeId);
-    if (authorization.error) return authorization.error;
-
-    const result = await db.query(
-      `SELECT submission_id, activity_unit_id, submitted_at, grade, passed,
-              trainer_feedback, audio_url, audio_filename, first_saved_at, last_synced_at
-       FROM training_manager_fix_my_call_submissions
-       WHERE employee_lw_id = $1 AND activity_unit_id = $2
-       ORDER BY submitted_at DESC NULLS LAST, first_saved_at DESC`,
-      [employeeId, ACTIVITY_UNIT_ID]
-    );
-
+    if (!(await checkOwnership(managerEmail, employeeId))) {
+      return errorResponse('Employee not found for this manager', 404);
+    }
+    const result = await archivedSubmissions(employeeId);
     return NextResponse.json({
-      success: true,
-      source: 'database',
-      employeeId,
+      success: true, source: 'database', employeeId,
       activityUnitId: ACTIVITY_UNIT_ID,
-      archivedCount: result.rows.length,
-      submissions: result.rows
+      archivedCount: result.rows.length, submissions: result.rows
     });
   } catch (error) {
     console.error('Fix My Call archive retrieval failed:', error);
@@ -123,7 +122,6 @@ export async function GET(request) {
   }
 }
 
-// Synchronize submissions from LearnWorlds into PostgreSQL.
 export async function POST(request) {
   try {
     let body;
@@ -144,19 +142,14 @@ export async function POST(request) {
       managerEmail = String(session?.user?.email || '').trim().toLowerCase();
     }
     if (!managerEmail) return errorResponse('Not authenticated', 401);
+    if (!(await checkOwnership(managerEmail, employeeId))) {
+      return errorResponse('Employee not found for this manager', 404);
+    }
 
-    const ownership = await db.query(
-      `SELECT 1 FROM training_manager_state
-       WHERE manager_email = $1 AND employee_lw_id = $2 LIMIT 1`,
-      [managerEmail, employeeId]
-    );
-    if (!ownership.rowCount) return errorResponse('Employee not found for this manager', 404);
-
-    const submissions = await getAllSubmissions(employeeId);
+    const { submissions, emptyResponseWas404 } = await getAllSubmissions(employeeId);
     let saved = 0;
     let skipped = 0;
     for (const submission of submissions) {
-      // Defense in depth: never archive a different user's response.
       if (String(submission?.user_id || '') !== employeeId || !submission?.id) {
         skipped++;
         continue;
@@ -192,19 +185,12 @@ export async function POST(request) {
       saved++;
     }
 
-    const result = await db.query(
-      `SELECT submission_id, activity_unit_id, submitted_at, grade, passed,
-              trainer_feedback, audio_url, audio_filename, first_saved_at, last_synced_at
-       FROM training_manager_fix_my_call_submissions
-       WHERE employee_lw_id = $1 AND activity_unit_id = $2
-       ORDER BY submitted_at DESC NULLS LAST, first_saved_at DESC`,
-      [employeeId, ACTIVITY_UNIT_ID]
-    );
-
+    const result = await archivedSubmissions(employeeId);
     return NextResponse.json({
       success: true, employeeId, activityUnitId: ACTIVITY_UNIT_ID,
       retrievedFromLearnWorlds: submissions.length, processed: saved, skipped,
-      archivedCount: result.rows.length, submissions: result.rows
+      emptyResponseWas404, archivedCount: result.rows.length,
+      submissions: result.rows
     });
   } catch (error) {
     console.error('Fix My Call sync failed:', error);
