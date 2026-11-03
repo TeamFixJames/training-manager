@@ -662,6 +662,15 @@
 @media print{.help-tour-btn-v52,.dashboard-help-overlay-v52,.tour-spotlight-v52,.tour-tooltip-v52,.tour-complete-v52{display:none!important}}
 </style>
 
+<style id="fix-my-call-archive-v54-css">
+.fmc-archive-v54{margin-top:10px;border:1px solid #dce5ef;background:#fff;border-radius:11px;overflow:hidden}
+.fmc-archive-head-v54{display:flex;justify-content:space-between;gap:10px;padding:12px 14px;background:#f7f9fc;border-bottom:1px solid #e4e7ec;font-size:12px;color:#183b5b}
+.fmc-archive-head-v54 span{color:#667085;font-size:10px}.fmc-archive-status-v54{padding:14px;font-size:11px;color:#667085}
+.fmc-archive-entry-v54{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:13px 14px;border-bottom:1px solid #edf0f4;font-size:11px}
+.fmc-archive-entry-v54:last-child{border-bottom:0}.fmc-archive-entry-v54 small{display:block;color:#667085;margin-top:5px}.fmc-archive-entry-v54 a{color:#245da8;font-weight:700}
+.fmc-feedback-v54{margin-top:9px;padding:9px 11px;background:#f8fafc;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}.fmc-feedback-v54 b{font-size:10px}.fmc-feedback-v54 p{margin:5px 0 0;line-height:1.5}
+@media(max-width:700px){.fmc-archive-entry-v54{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1227,17 +1236,52 @@ function managerActionStripV45(e){
   const urgent=/behind|no training path|not passed/i.test(String(a.reason||''));
   return `<div class="manager-action-v45 ${urgent?'urgent':'attention'}"><div class="action-icon">!</div><div><b>Manager Action · ${esc(a.label||'Needs Attention')}</b><span>${esc(a.reason||'Review this employee’s training status and determine the next step.')}</span></div></div>`;
 }
-function engagementToolsStripV47(e){
- const eng=e?.engagement||{fix:[],trainer:[]};
- const fix=Array.isArray(eng.fix)?eng.fix:[], trainer=Array.isArray(eng.trainer)?eng.trainer:[];
- const now=new Date(), month=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
- const thisMonth=fix.filter(x=>String(x.date||'').slice(0,7)===month).length;
- const remaining=Math.max(0,3-thisMonth);
- const lastFix=fix.filter(x=>x.date).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
- const lastTrainer=trainer.filter(x=>x.date).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
- return `<div class="sales-fix-tools-v47"><div class="sales-fix-tools-head-v47"><div><b>Advisor Support Tools</b><span>Available throughout the employee’s Sales Fix training journey.</span></div></div><div class="sales-fix-tools-grid-v47"><button class="support-tool-v47" type="button" onclick="logSupportUseV47('fix')"><span class="support-tool-name-v47">Fix My Call</span><strong>${thisMonth} of 3 this month</strong><small>${remaining?remaining+' submission'+(remaining===1?'':'s')+' remaining':'Monthly limit reached'}${lastFix?' · Last '+fmt(lastFix.date):''}</small><i>+ Log Use</i></button><button class="support-tool-v47" type="button" onclick="logSupportUseV47('trainer')"><span class="support-tool-name-v47">Call a Trainer</span><strong>${trainer.length} total use${trainer.length===1?'':'s'}</strong><small>${lastTrainer?'Last used '+fmt(lastTrainer.date):'No uses recorded yet'}</small><i>+ Log Use</i></button></div></div>`;
+const FIX_MY_CALL_UNITS_V54 = ['662a798fbd2fd0673a0fe340','662a7cfa59f291deb40da302','662a7cff127c91d77906b335'];
+window.fixMyCallArchiveV54=window.fixMyCallArchiveV54||{};
+const fixMyCallPendingV54=new Set();
+function renderFixMyCallArchiveV54(e){
+ const record=window.fixMyCallArchiveV54[String(e.id)];
+ if(!record)return '<div class="fmc-archive-status-v54">Loading archived Fix My Call history…</div>';
+ if(record.error)return '<div class="fmc-archive-status-v54">Unable to retrieve archived submissions. Please refresh the dashboard or try again later.</div>';
+ const rows=record.submissions||[];
+ if(!rows.length)return '<div class="fmc-archive-status-v54">No archived Fix My Call submissions yet.</div>';
+ return '<div class="fmc-archive-head-v54"><b>Fix My Call · Submission History</b><span>'+rows.length+' archived</span></div>'+rows.map(x=>{
+   const date=x.submitted_at?new Date(x.submitted_at).toLocaleDateString(): 'Date unavailable';
+   const unit=FIX_MY_CALL_UNITS_V54.indexOf(String(x.activity_unit_id))+1;
+   const grade=x.grade==null?'Not graded':String(x.grade)+'%';
+   const feedback=x.trainer_feedback?'<div class="fmc-feedback-v54"><b>Trainer feedback</b><p>'+esc(String(x.trainer_feedback))+'</p></div>':'';
+   const url=String(x.audio_url||'');
+   const audio=/^https:\/\/[^\s]+$/i.test(url)?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Open recording'+(x.audio_filename?' ('+esc(String(x.audio_filename))+')':'')+'</a>':'<span>Recording unavailable</span>';
+   return '<div class="fmc-archive-entry-v54"><div><b>'+esc(date)+'</b><small>Activity '+(unit>0?unit:'unknown')+' · '+esc(grade)+'</small></div><div>'+audio+feedback+'</div></div>';
+ }).join('');
 }
+async function loadFixMyCallArchiveV54(e){
+ const id=String(e?.id||'');if(!id||fixMyCallPendingV54.has(id)||window.fixMyCallArchiveV54[id])return;
+ fixMyCallPendingV54.add(id);
+ try{
+  const response=await fetch('/api/fix-my-call?employeeId='+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'});
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  const payload=await response.json();if(!payload?.success||!Array.isArray(payload.submissions))throw new Error('Invalid archive response');
+  window.fixMyCallArchiveV54[id]={submissions:payload.submissions};
+ }catch(err){console.warn('Fix My Call archive:',err);window.fixMyCallArchiveV54[id]={error:true,submissions:[]};}
+ finally{
+  fixMyCallPendingV54.delete(id);
+  if(String(active()?.id||'')===id&&window.__dashboardView==='employee')renderAll();
+ }
+}
+function engagementToolsStripV47(e){
+ const trainer=Array.isArray(e?.engagement?.trainer)?e.engagement.trainer:[];
+ const lastTrainer=trainer.filter(x=>x.date).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
+ const archive=window.fixMyCallArchiveV54?.[String(e.id)];
+ const rows=archive?.submissions||[];
+ const month=new Date().toISOString().slice(0,7);
+ const thisMonth=rows.filter(x=>String(x.submitted_at||'').slice(0,7)===month).length;
+ const status=!archive?'Loading archived submissions…':archive.error?'Unable to load archive':`${rows.length} archived submission${rows.length===1?'':'s'} · ${thisMonth} this month`;
+ return `<div class="sales-fix-tools-v47"><div class="sales-fix-tools-head-v47"><div><b>Advisor Support Tools</b><span>Available throughout the employee’s Sales Fix training journey.</span></div></div><div class="sales-fix-tools-grid-v47"><div class="support-tool-v47" style="cursor:default"><span class="support-tool-name-v47">Fix My Call · Automatic</span><strong>${status}</strong><small>Synced daily from LearnWorlds. View dates, grades, feedback and recordings below.</small></div><button class="support-tool-v47" type="button" onclick="logSupportUseV47('trainer')"><span class="support-tool-name-v47">Call a Trainer</span><strong>${trainer.length} total use${trainer.length===1?'':'s'}</strong><small>${lastTrainer?'Last used '+fmt(lastTrainer.date):'No uses recorded yet'}</small><i>+ Log Use</i></button></div></div><div id="fixMyCallArchivePanelV54" class="fmc-archive-v54">${renderFixMyCallArchiveV54(e)}</div>`;
+}
+
 function logSupportUseV47(type){
+ if(type==='fix'){showToast('Fix My Call submissions are tracked automatically');return;}
  const e=active();if(!e)return;
  e.engagement=e.engagement||{fix:[],trainer:[]};e.engagement.fix=Array.isArray(e.engagement.fix)?e.engagement.fix:[];e.engagement.trainer=Array.isArray(e.engagement.trainer)?e.engagement.trainer:[];
  const now=new Date(),today=iso(now),month=today.slice(0,7);
@@ -1246,7 +1290,7 @@ function logSupportUseV47(type){
  const note=prompt('Optional note:','')||'';
  e.engagement[type==='fix'?'fix':'trainer'].push({date:dt,note});persist();renderAll();showToast(type==='fix'?'Fix My Call use logged':'Call a Trainer use logged');
 }
-function renderEmployee(e){const p=activePath(e);if(!p){$('#content').innerHTML='<div class="empty"><div><h3>Set Up Path to Certification</h3><p>Every new employee begins with Path to Certification. Choose their start date and normal daily training time to build the guided certification schedule.</p><button class="btn primary" onclick="openPathModal()">Set Up Path to Certification</button></div></div>';return}
+function renderEmployee(e){loadFixMyCallArchiveV54(e);const p=activePath(e);if(!p){$('#content').innerHTML='<div class="empty"><div><h3>Set Up Path to Certification</h3><p>Every new employee begins with Path to Certification. Choose their start date and normal daily training time to build the guided certification schedule.</p><button class="btn primary" onclick="openPathModal()">Set Up Path to Certification</button></div></div>';return}
  ensurePathExtras(p);$('#content').setAttribute('data-path-type',p.type||'custom');const core=progressEvents(p),completed=core.filter(x=>x.completed).length,pct=pathPct(p);
  const certReadinessForProgress=p.type==='cert'?(e.certification?.level1||null):null;
  const certExamsForProgress=p.type==='cert'?(Array.isArray(e.certification?.sectionExams)?e.certification.sectionExams:[]):[]; 
@@ -2552,7 +2596,21 @@ load();renderAll();syncLearnWorldsRosterV23();
 
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(emp.name||'Employee')+' Training Calendar</title><style>'+css+'</style></head><body>'+
       '<div class="toolbar"><button onclick="window.close()">Close</button><button class="primary" onclick="window.print()">Print Calendar</button></div>'+
-      pages+'
+      pages+'</body></html>';
+  }
+  // Standalone calendar export is optional; the existing calendar preview remains available.
+  window.openStandaloneTrainingCalendar = function(){
+    var html = buildStandaloneHtml();
+    if(!html){ alert('No scheduled training items are available for calendar export.'); return; }
+    var popup = window.open('', '_blank');
+    if(!popup){ alert('Please allow pop-ups to open the training calendar.'); return; }
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+  };
+})();
+</script>
+
 <style id="pace-status-v23-css">
 .pace-card-v23{margin:14px 0;padding:15px 17px;border:1px solid #d8e1ec;border-radius:12px;background:#fff}
 .pace-top-v23{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
@@ -2910,13 +2968,13 @@ function currentPath(){const e=currentEmployee();return e&&typeof activePath==='
 function mk(d){d=new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function monday(d){d=new Date(d);d.setHours(12,0,0,0);let n=d.getDay()||7;d.setDate(d.getDate()-n+1);return d}
 function sameWeek(a,b){return monday(a).getTime()===monday(b).getTime()}
-function logs(t){let x=data()[employeeKey()]||{};return Array.isArray(x[t])?x[t]:[]}
+function logs(t){if(t==='fix'){const e=currentEmployee();return (window.fixMyCallArchiveV54?.[String(e?.id)]?.submissions||[]).filter(x=>x.submitted_at).map(x=>({date:String(x.submitted_at).slice(0,10),note:x.trainer_feedback||''}));}let x=data()[employeeKey()]||{};return Array.isArray(x[t])?x[t]:[]}
 function completedInWeek(start){const p=currentPath();if(!p)return[];return [...(p.events||[]),...(p.webinars||[])].filter(x=>x.completed&&x.date&&sameWeek(x.date,start))}
 function weekTotal(start){return completedInWeek(start).length+logs('fix').filter(x=>x.date&&sameWeek(x.date,start)).length+logs('trainer').filter(x=>x.date&&sameWeek(x.date,start)).length}
 function add(t){let now=new Date();if(t==='fix'&&logs('fix').filter(x=>mk(x.date)===mk(now)).length>=3){alert('Monthly Fix My Call limit reached.');return}let dt=prompt('Date used (YYYY-MM-DD):',now.toISOString().slice(0,10));if(!dt)return;let note=prompt('Optional note:','')||'';let x=data(),k=employeeKey();x[k]=x[k]||{};x[k][t]=x[k][t]||[];x[k][t].push({date:dt,note:note});save(x);renderAll();if(typeof renderAllPace==='function')renderAllPace()}
 function render(){let h=document.getElementById('otEngagementV2');if(!h)return;let e=currentEmployee(),p=currentPath();if(!e||!p||p.type!=='ongoing')return;let now=new Date(),f=logs('fix'),c=logs('trainer'),fm=f.filter(x=>mk(x.date)===mk(now)),fw=f.filter(x=>sameWeek(x.date,now)).length,cw=c.filter(x=>sameWeek(x.date,now)).length,completed=completedInWeek(now),total=completed.length+fw+cw,ws=monday(now),we=new Date(ws);we.setDate(we.getDate()+6);let fmt=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'}),rem=Math.max(0,3-fm.length),dots='●'.repeat(Math.min(3,fm.length))+'○'.repeat(rem);let weeks=[];for(let i=7;i>=0;i--){let s=monday(now);s.setDate(s.getDate()-i*7);weeks.push({start:s,total:weekTotal(s)})}let activeWeeks=weeks.filter(x=>x.total>0).length;let recent=weeks.slice().reverse(),streak=0;for(const w of recent){if(w.total>0)streak++;else break}
- h.innerHTML=`<div class="ot-week-summary"><div class="ot-week-head"><div><div class="ot-week-title">This Week · ${fmt(ws)}–${fmt(we)}</div><div class="ot-consistency-copy">${activeWeeks} of the last 8 weeks active${streak?' · '+streak+'-week current streak':''}</div></div><div class="ot-status ${total?'active':''}">${total?'✓ Active This Week':'No Activity Yet'}</div></div><div class="ot-metrics"><div class="ot-metric"><b>${total}</b><span>Activities</span></div><div class="ot-metric"><b>${completed.length}</b><span>Training Completed</span></div><div class="ot-metric"><b>${fw}</b><span>Fix My Call</span></div><div class="ot-metric"><b>${cw}</b><span>Call a Trainer</span></div><div class="ot-metric"><b>${fm.length}/3</b><span>FMC This Month</span></div></div><div class="consistency-strip"><div class="consistency-title"><b>8-Week Consistency</b><span>${Math.round(activeWeeks/8*100)}%</span></div><div class="consistency-weeks">${weeks.map(w=>`<div class="consistency-week ${w.total?'active':''}" title="Week of ${fmt(w.start)} · ${w.total} activities"><i></i><span>${fmt(w.start)}</span></div>`).join('')}</div></div></div><div class="ot-tools-title">Engagement Tracking</div><div class="ot-tool-grid"><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Fix My Call</div><div class="ot-tool-sub">Monthly submission allowance</div></div><b>${fm.length} of 3</b></div><div class="ot-dots">${dots}</div><div class="ot-limit">${rem?rem+' submission'+(rem===1?'':'s')+' remaining this month':'Monthly limit reached'}</div><button class="ot-log-btn" id="otFix" ${rem?'':'disabled'}>+ Log Use</button><div class="ot-history">${f.length} total logged uses</div></div><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Call a Trainer</div><div class="ot-tool-sub">Advisor support activity</div></div><b>${cw} this week</b></div><div class="ot-limit">${c.length} total logged uses</div><button class="ot-log-btn" id="otTrainer">+ Log Use</button></div></div><div class="ot-schedule-label">Training Schedule</div>`;
- document.getElementById('otFix')?.addEventListener('click',()=>add('fix'));document.getElementById('otTrainer')?.addEventListener('click',()=>add('trainer'))}
+ h.innerHTML=`<div class="ot-week-summary"><div class="ot-week-head"><div><div class="ot-week-title">This Week · ${fmt(ws)}–${fmt(we)}</div><div class="ot-consistency-copy">${activeWeeks} of the last 8 weeks active${streak?' · '+streak+'-week current streak':''}</div></div><div class="ot-status ${total?'active':''}">${total?'✓ Active This Week':'No Activity Yet'}</div></div><div class="ot-metrics"><div class="ot-metric"><b>${total}</b><span>Activities</span></div><div class="ot-metric"><b>${completed.length}</b><span>Training Completed</span></div><div class="ot-metric"><b>${fw}</b><span>Fix My Call</span></div><div class="ot-metric"><b>${cw}</b><span>Call a Trainer</span></div><div class="ot-metric"><b>${fm.length}/3</b><span>FMC This Month</span></div></div><div class="consistency-strip"><div class="consistency-title"><b>8-Week Consistency</b><span>${Math.round(activeWeeks/8*100)}%</span></div><div class="consistency-weeks">${weeks.map(w=>`<div class="consistency-week ${w.total?'active':''}" title="Week of ${fmt(w.start)} · ${w.total} activities"><i></i><span>${fmt(w.start)}</span></div>`).join('')}</div></div></div><div class="ot-tools-title">Engagement Tracking</div><div class="ot-tool-grid"><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Fix My Call</div><div class="ot-tool-sub">Monthly submission allowance</div></div><b>${fm.length} of 3</b></div><div class="ot-dots">${dots}</div><div class="ot-limit">${rem?rem+' submission'+(rem===1?'':'s')+' remaining this month':'Monthly limit reached'}</div><div class="ot-history">Automatically synced from LearnWorlds</div><div class="ot-history">${f.length} total logged uses</div></div><div class="ot-tool-card"><div class="ot-tool-head"><div><div class="ot-tool-name">Call a Trainer</div><div class="ot-tool-sub">Advisor support activity</div></div><b>${cw} this week</b></div><div class="ot-limit">${c.length} total logged uses</div><button class="ot-log-btn" id="otTrainer">+ Log Use</button></div></div><div class="ot-schedule-label">Training Schedule</div>`;
+ document.getElementById('otTrainer')?.addEventListener('click',()=>add('trainer'))}
 function install(){if(document.getElementById('otEngagementV2'))return;let mount=document.getElementById('otEngagementMount');if(!mount)return;let h=document.createElement('div');h.id='otEngagementV2';h.className='ot-engagement';mount.replaceWith(h);render()}
 document.addEventListener('DOMContentLoaded',()=>setTimeout(install,300));document.addEventListener('click',()=>setTimeout(()=>{install();render()},100),true);new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
 })();
