@@ -670,6 +670,20 @@
 .fmc-archive-entry-v54:last-child{border-bottom:0}.fmc-archive-entry-v54 small{display:block;color:#667085;margin-top:5px}.fmc-archive-entry-v54 a{color:#245da8;font-weight:700}
 .fmc-feedback-v54{margin-top:9px;padding:9px 11px;background:#f8fafc;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}.fmc-feedback-v54 b{font-size:10px}.fmc-feedback-v54 p{margin:5px 0 0;line-height:1.5}
 @media(max-width:700px){.fmc-archive-entry-v54{grid-template-columns:1fr}}
+/* v56: compact, expandable Fix My Call feedback */
+.fmc-archive-entry-v54{grid-template-columns:minmax(145px,180px) minmax(0,1fr);align-items:start}
+.fmc-feedback-v56{margin-top:10px;border:1px solid #dce5ef;border-radius:9px;overflow:hidden;background:#fff}
+.fmc-feedback-v56 summary{cursor:pointer;list-style:none;padding:10px 12px;background:#f8fafc;color:#24445f;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fmc-feedback-v56 summary::-webkit-details-marker{display:none}
+.fmc-feedback-v56 summary:after{content:'+';font-size:17px;color:#718196}
+.fmc-feedback-v56[open] summary:after{content:'−'}
+.fmc-feedback-v56[open] summary{border-bottom:1px solid #e4e7ec}
+.fmc-feedback-body-v56{padding:13px 15px;font-size:12px;line-height:1.6;overflow-wrap:anywhere;white-space:normal;color:#344054}
+.fmc-feedback-body-v56 p{margin:0 0 10px}.fmc-feedback-body-v56 p:last-child{margin-bottom:0}
+.fmc-feedback-body-v56 ul,.fmc-feedback-body-v56 ol{padding-left:22px}
+.fmc-feedback-body-v56 h1,.fmc-feedback-body-v56 h2,.fmc-feedback-body-v56 h3{font-size:13px;margin:12px 0 6px;color:#183b5b}
+.fmc-feedback-body-v56 strong,.fmc-feedback-body-v56 b{font-weight:800}
+@media(max-width:700px){.fmc-archive-entry-v54{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1239,6 +1253,23 @@ function managerActionStripV45(e){
 const FIX_MY_CALL_UNITS_V54 = ['662a798fbd2fd0673a0fe340','662a7cfa59f291deb40da302','662a7cff127c91d77906b335'];
 window.fixMyCallArchiveV54=window.fixMyCallArchiveV54||{};
 const fixMyCallPendingV54=new Set();
+// Allow only simple formatting from LearnWorlds; never inject its raw HTML or styles.
+function safeFixMyCallFeedbackV56(value){
+ const parsed=new DOMParser().parseFromString(String(value||''),'text/html');
+ const allowed=new Set(['P','BR','STRONG','B','EM','I','U','UL','OL','LI','H1','H2','H3','BLOCKQUOTE']);
+ function clean(node){
+  if(node.nodeType===Node.TEXT_NODE)return document.createTextNode(node.textContent||'');
+  if(node.nodeType!==Node.ELEMENT_NODE)return document.createDocumentFragment();
+  const tag=node.tagName;
+  if(['SCRIPT','STYLE','IFRAME','OBJECT','SVG','MATH','FORM','TEMPLATE'].includes(tag))return document.createDocumentFragment();
+  const el=allowed.has(tag)?document.createElement(tag.toLowerCase()):document.createDocumentFragment();
+  for(const child of Array.from(node.childNodes))el.appendChild(clean(child));
+  return el;
+ }
+ const wrapper=document.createElement('div');
+ for(const child of Array.from(parsed.body.childNodes))wrapper.appendChild(clean(child));
+ return wrapper.innerHTML;
+}
 function renderFixMyCallArchiveV54(e){
  const record=window.fixMyCallArchiveV54[String(e.id)];
  if(!record)return '<div class="fmc-archive-status-v54">Loading archived Fix My Call history…</div>';
@@ -1249,7 +1280,7 @@ function renderFixMyCallArchiveV54(e){
    const date=x.submitted_at?new Date(x.submitted_at).toLocaleDateString(): 'Date unavailable';
    const unit=FIX_MY_CALL_UNITS_V54.indexOf(String(x.activity_unit_id))+1;
    const grade=x.grade==null?'Not graded':String(x.grade)+'%';
-   const feedback=x.trainer_feedback?'<div class="fmc-feedback-v54"><b>Trainer feedback</b><p>'+esc(String(x.trainer_feedback))+'</p></div>':'';
+   const feedback=x.trainer_feedback?'<details class="fmc-feedback-v56"><summary>View trainer feedback</summary><div class="fmc-feedback-body-v56">'+safeFixMyCallFeedbackV56(x.trainer_feedback)+'</div></details>':'';
    const url=String(x.audio_url||'');
    const audio=/^https:\/\/[^\s]+$/i.test(url)?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Open recording'+(x.audio_filename?' ('+esc(String(x.audio_filename))+')':'')+'</a>':'<span>Recording unavailable</span>';
    return '<div class="fmc-archive-entry-v54"><div><b>'+esc(date)+'</b><small>Activity '+(unit>0?unit:'unknown')+' · '+esc(grade)+'</small></div><div>'+audio+feedback+'</div></div>';
