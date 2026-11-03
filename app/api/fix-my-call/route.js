@@ -73,6 +73,57 @@ async function getAllSubmissions(employeeId) {
   throw new Error('LearnWorlds submission pagination exceeded safety limit');
 }
 
+async function authorizedManagerForEmployee(employeeId) {
+  const session = await auth0.getSession();
+  const managerEmail = String(session?.user?.email || '').trim().toLowerCase();
+  if (!managerEmail) return { error: errorResponse('Not authenticated', 401) };
+
+  const ownership = await db.query(
+    `SELECT 1 FROM training_manager_state
+     WHERE manager_email = $1 AND employee_lw_id = $2 LIMIT 1`,
+    [managerEmail, employeeId]
+  );
+  if (!ownership.rowCount) {
+    return { error: errorResponse('Employee not found for this manager', 404) };
+  }
+  return { managerEmail };
+}
+
+// Read previously archived submissions from PostgreSQL only.
+// This does not call LearnWorlds or change any stored records.
+export async function GET(request) {
+  try {
+    const url = new URL(request.url);
+    const employeeId = String(url.searchParams.get('employeeId') || '').trim();
+    if (!employeeId) return errorResponse('employeeId is required', 400);
+
+    const authorization = await authorizedManagerForEmployee(employeeId);
+    if (authorization.error) return authorization.error;
+
+    const result = await db.query(
+      `SELECT submission_id, activity_unit_id, submitted_at, grade, passed,
+              trainer_feedback, audio_url, audio_filename, first_saved_at, last_synced_at
+       FROM training_manager_fix_my_call_submissions
+       WHERE employee_lw_id = $1 AND activity_unit_id = $2
+       ORDER BY submitted_at DESC NULLS LAST, first_saved_at DESC`,
+      [employeeId, ACTIVITY_UNIT_ID]
+    );
+
+    return NextResponse.json({
+      success: true,
+      source: 'database',
+      employeeId,
+      activityUnitId: ACTIVITY_UNIT_ID,
+      archivedCount: result.rows.length,
+      submissions: result.rows
+    });
+  } catch (error) {
+    console.error('Fix My Call archive retrieval failed:', error);
+    return errorResponse('Unable to retrieve archived Fix My Call submissions; check server logs', 500);
+  }
+}
+
+// Synchronize submissions from LearnWorlds into PostgreSQL.
 export async function POST(request) {
   try {
     let body;
