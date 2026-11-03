@@ -4,70 +4,36 @@ import { db } from '../../../lib/db';
 
 // TEMPORARY READ-ONLY DIAGNOSTIC. Remove after testing.
 const LEARNER_ID = '669551ced2d38f8d1b022966';
-const COURSE_ID = 'fixmycall';
-const UNIT_ID_NO_SUFFIX = '662a798fbd2fd0673a0fe340';
-const UNIT_ID_WITH_SUFFIX = '662a798fbd2fd0673a0fe340Unit';
+const UNIT_ID = '662a798fbd2fd0673a0fe340'; // No "Unit" suffix
+const EXPECTED_SUBMISSION_ID = '6aea08c2800b1822280198f4';
 
-function describe(value, depth = 0) {
-  if (value === null) return { type: 'null' };
-  if (Array.isArray(value)) {
-    return {
-      type: 'array',
-      count: value.length,
-      sample: value.length && depth < 8 ? describe(value[0], depth + 1) : undefined
-    };
-  }
-  if (typeof value === 'object') {
-    if (depth >= 8) return { type: 'object', keys: Object.keys(value) };
-    return {
-      type: 'object',
-      fields: Object.fromEntries(
-        Object.entries(value).map(([key, child]) => [key, describe(child, depth + 1)])
-      )
-    };
-  }
-  return { type: typeof value };
-}
-
-function recordSummary(payload) {
-  const candidates = [payload?.data, payload?.data?.responses, payload?.responses, payload?.data?.items];
-  const records = candidates.find(Array.isArray) || [];
+function classifyString(value) {
+  if (typeof value !== 'string') return { type: value === null ? 'null' : typeof value };
+  const trimmed = value.trim();
+  const looksLikeUrl = /^https?:\/\//i.test(trimmed);
+  const looksLikeFile = /\.(mp3|wav|m4a|ogg|aac)(?:[?#]|$)/i.test(trimmed);
+  const looksLikeJson = /^[\[{]/.test(trimmed);
   return {
-    countOnPage: records.length,
-    matchedLearnerCount: records.filter((item) =>
-      String(item?.user_id ?? item?.userId ?? item?.user?.id ?? item?.learner_id ?? '') === LEARNER_ID
-    ).length
+    type: 'string',
+    present: trimmed.length > 0,
+    length: value.length,
+    looksLikeUrl,
+    looksLikeAudioFileReference: looksLikeFile,
+    looksLikeJson,
+    // Deliberately do not return filenames, URLs, text, or tokens.
   };
 }
 
-async function testAssessment(base, unitId) {
-  const url = new URL(`${base}/assessments/${encodeURIComponent(unitId)}/responses`);
-  url.searchParams.set('users', LEARNER_ID);
-  url.searchParams.set('page', '1');
-  url.searchParams.set('items_per_page', '20');
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${process.env.LW_TOKEN}`,
-      'Lw-Client': process.env.LW_CLIENT_ID,
-      Accept: 'application/json'
-    },
-    cache: 'no-store'
-  });
-
-  const raw = await response.text();
-  let payload = null;
-  try { payload = JSON.parse(raw); } catch { /* non-JSON response */ }
-
-  return {
-    identifierTested: unitId,
-    upstreamStatus: response.status,
-    success: response.ok,
-    // Only structural metadata is returned; never raw feedback, MP3 URLs, or personal data.
-    responseShape: payload === null ? { type: 'non-json' } : describe(payload),
-    records: response.ok ? recordSummary(payload) : undefined
-  };
+function describeAnswer(answer) {
+  if (!answer || typeof answer !== 'object') return { type: typeof answer };
+  const fields = {};
+  for (const [key, value] of Object.entries(answer)) {
+    if (typeof value === 'string' || value === null) fields[key] = classifyString(value);
+    else if (Array.isArray(value)) fields[key] = { type: 'array', count: value.length, firstItemType: value.length ? typeof value[0] : null };
+    else if (typeof value === 'object') fields[key] = { type: 'object', keys: Object.keys(value) };
+    else fields[key] = { type: typeof value };
+  }
+  return { fields };
 }
 
 export async function GET() {
@@ -81,32 +47,55 @@ export async function GET() {
        WHERE manager_email = $1 AND employee_lw_id = $2 LIMIT 1`,
       [email, LEARNER_ID]
     );
-    if (!ownership.rows.length) {
-      return NextResponse.json(
-        { error: 'This learner is not assigned to your Training Manager account.' },
-        { status: 403 }
-      );
-    }
+    if (!ownership.rows.length) return NextResponse.json(
+      { error: 'This learner is not assigned to your Training Manager account.' },
+      { status: 403 }
+    );
 
     const base = (process.env.LW_API_URL || '').replace(/\/+$/, '');
     if (!base || !process.env.LW_TOKEN || !process.env.LW_CLIENT_ID) {
       return NextResponse.json({ error: 'LearnWorlds environment variables are missing' }, { status: 500 });
     }
 
-    // Two GET requests only. No grade changes, reviews, or database writes.
-    const tests = [];
-    for (const unitId of [UNIT_ID_NO_SUFFIX, UNIT_ID_WITH_SUFFIX]) {
-      tests.push(await testAssessment(base, unitId));
-    }
+    const url = `${base}/assessments/${encodeURIComponent(UNIT_ID)}/responses?users=${encodeURIComponent(LEARNER_ID)}&items_per_page=20&page=1`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${process.env.LW_TOKEN}`,
+        'Lw-Client': process.env.LW_CLIENT_ID,
+        Accept: 'application/json'
+      },
+      cache: 'no-store'
+    });
+
+    const raw = await response.text();
+    let payload;
+    try { payload = JSON.parse(raw); } catch { payload = null; }
+    if (!response.ok) return NextResponse.json({ success: false, upstreamStatus: response.status, responseType: payload === null ? 'non-json' : 'json' });
+
+    const records = Array.isArray(payload?.data) ? payload.data : [];
+    const learnerRecords = records.filter(item => String(item?.user_id || '') === LEARNER_ID);
+    const target = learnerRecords.find(item => String(item?.id || '') === EXPECTED_SUBMISSION_ID);
+    const selected = target || learnerRecords[0];
+    const answers = Array.isArray(selected?.answers) ? selected.answers : [];
 
     return NextResponse.json({
-      test: 'Fix My Call assessment learning-unit identifier formats',
-      courseId: COURSE_ID,
-      learnerId: LEARNER_ID,
-      tests
+      success: true,
+      upstreamStatus: response.status,
+      recordCount: records.length,
+      matchedLearnerCount: learnerRecords.length,
+      expectedSubmissionFound: Boolean(target),
+      inspectedSubmission: selected ? (target ? 'expected-submission' : 'first-learner-submission') : 'none',
+      answerCount: answers.length,
+      answers: answers.map((item, index) => ({ index, ...describeAnswer(item) })),
+      generalFeedback: classifyString(selected?.generalFeedback),
+      topLevelFieldNames: selected ? Object.keys(selected) : [],
+      pagination: {
+        totalItems: typeof payload?.meta?.totalItems === 'number' ? payload.meta.totalItems : null,
+        totalPages: typeof payload?.meta?.totalPages === 'number' ? payload.meta.totalPages : null
+      }
     });
   } catch (error) {
-    console.error('Fix My Call diagnostic failed:', error?.message);
+    console.error('Fix My Call attachment diagnostic failed:', error?.name || 'unknown error');
     return NextResponse.json({ error: 'Diagnostic failed' }, { status: 500 });
   }
 }
