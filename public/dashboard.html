@@ -917,6 +917,8 @@ function employeeStateForSaveV24(e){
     activePathId:e.activePathId||null,
     engagement:e.engagement||{fix:[],trainer:[]},
     coachingNotes:Array.isArray(e.coachingNotes)?e.coachingNotes:[],
+    lwRecentEvents:Array.isArray(e.lwRecentEvents)?e.lwRecentEvents:[],
+    lwEventsLastCheckedAt:e.lwEventsLastCheckedAt||'',
     learnWorldsManaged:!!e.learnWorldsManaged,
     learnWorldsStatus:e.learnWorldsStatus||'active',
     learnWorldsTags:Array.isArray(e.learnWorldsTags)?e.learnWorldsTags:[],
@@ -1163,12 +1165,17 @@ function recentActivity(e){
   for(const p of e.paths||[]){
     for(const x of (typeof scheduleItems==='function'?scheduleItems(p):[...(p.events||[]),...(p.webinars||[])])){
       if(!x.completed)continue;
+      if(x.kind==='video' && x.lwHistoricalAtPathStart===true)continue;
       const activityDate=x.lwCompletionDetectedAt||x.lwLastSyncedAt||x.date;
       if(!activityDate)continue;
       const kind=x.kind==='video'?'Completed video':x.kind==='call'?'Completed Weekly Group Call':x.kind==='webinar'?'Completed webinar / workshop':'Completed training activity';
       const detail=[pathName(p.type),x.section||'',x.kind==='video'&&x.duration?x.duration:''].filter(Boolean).join(' · ');
       add({date:activityDate,type:'training',title:`${kind}: ${x.title||'Training'}`,detail});
     }
+  }
+
+  for(const x of (e.lwRecentEvents||[])){
+    if(x && x.date && x.title)add({date:x.date,type:'training',title:x.title,detail:x.detail||''});
   }
 
   const cert=e.certification||{};
@@ -1193,7 +1200,7 @@ function recentActivity(e){
 
   return out.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,30)
 }
-function recentActivityPanel(e){const items=recentActivity(e),visible=items.slice(0,6),hidden=items.slice(6);return`<div class="activity-panel"><div class="activity-panel-head"><div><h3>Recent Activity</h3><p>Recent training completions, certification results, and support activity.</p></div></div><div class="activity-timeline" id="recentActivityTimeline">${visible.length?visible.map(x=>`<div class="activity-row"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join(''):'<div class="activity-empty">No activity recorded yet.</div>'}${hidden.map(x=>`<div class="activity-row recent-extra" style="display:none"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join('')}</div>${hidden.length?`<button class="btn" id="recentActivityToggle">Show More (${hidden.length})</button>`:''}</div>`}
+function recentActivityPanel(e){const items=recentActivity(e),visible=items.slice(0,6),hidden=items.slice(6);return`<div class="activity-panel"><div class="activity-panel-head"><div><h3>Recent Activity <span title="Videos completed before a training path was added count toward progress but are not listed here. New completions use the date they are first detected by the dashboard." style="cursor:help;color:#667085;font-size:12px" aria-label="About Recent Activity">ⓘ</span></h3><p>Training completions, school events, and support activity. Historical video completions count toward progress but do not appear here.</p></div></div><div class="activity-timeline" id="recentActivityTimeline">${visible.length?visible.map(x=>`<div class="activity-row"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join(''):'<div class="activity-empty">No activity recorded yet.</div>'}${hidden.map(x=>`<div class="activity-row recent-extra" style="display:none"><div class="activity-dot ${x.type}"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>${esc(x.title)}</b><span>${esc(x.detail||'')}</span></div></div>`).join('')}</div>${hidden.length?`<button class="btn" id="recentActivityToggle">Show More (${hidden.length})</button>`:''}</div>`}
 function coachingPanel(e){const items=[...coachingFor(e)].sort((a,b)=>String(b.date).localeCompare(String(a.date)));return`<div class="activity-panel coaching-panel"><div class="activity-panel-head"><div><h3>Training Manager Notes</h3><p>Manager notes, observations, and follow-up items for this employee.</p></div><button class="btn" id="addCoachingNoteBtn">+ Add Note</button></div><div class="coach-note-form" id="coachNoteForm" style="display:none"><input id="coachNoteDate" type="date" value="${iso(new Date())}"><textarea id="coachNoteText" rows="2" placeholder="Add a training note, observation, development focus, or follow-up..."></textarea><div><button class="btn primary" id="saveCoachingNoteBtn">Save Note</button><button class="btn" id="cancelCoachingNoteBtn">Cancel</button></div></div><div class="activity-timeline">${items.length?items.map(x=>`<div class="activity-row"><div class="activity-dot note"></div><div class="activity-date">${shortFmt(x.date)}</div><div class="activity-copy"><b>Manager note</b><span>${esc(x.text||'')}</span></div></div>`).join(''):'<div class="activity-empty">No coaching notes yet.</div>'}</div></div>`}
 function bindRecentActivity(e){const toggle=$('#recentActivityToggle');if(toggle){toggle.onclick=()=>{const extra=$$('.recent-extra'),open=extra.some(x=>x.style.display!=='none');extra.forEach(x=>x.style.display=open?'none':'grid');toggle.textContent=open?`Show More (${extra.length})`:'Show Less'}}const add=$('#addCoachingNoteBtn'),form=$('#coachNoteForm');if(!add||!form)return;add.onclick=()=>{form.style.display='grid';$('#coachNoteText').focus()};$('#cancelCoachingNoteBtn').onclick=()=>{form.style.display='none'};$('#saveCoachingNoteBtn').onclick=()=>{const dt=$('#coachNoteDate').value,txt=$('#coachNoteText').value.trim();if(!dt||!txt){alert('Add a date and coaching note.');return}const items=coachingFor(e);items.push({id:uid(),date:dt,text:txt});saveCoachingFor(e,items);renderAll();showToast('Coaching note added')}}
 function managerAttentionItemV43(e){
@@ -1691,6 +1698,7 @@ function savePath(){
     p.startDateSource=recommended&&start===recommended?'sales_fix_enrollment':'manager_selected';
     p.startDateConfirmedAt=new Date().toISOString();
   }
+  p.initialProgressBaselinePending=true;
   e.paths.push(p);e.activePathId=p.id;syncCertificationGroupCallFromTagsV42(e);persist();closePathModal();renderAll();showToast(type==='cert'?'Path to Certification schedule created':'Ongoing Training added');requestTrainingActivitySyncV29(e)
 }
 function updatePathDailyTrainingTime(newTime){
@@ -2128,7 +2136,9 @@ function visibleTrainingStateFingerprintV31(employee){
       completed:!!event.completed,
       lwUnitId:event.lwUnitId||'',
       lwCourseId:event.lwCourseId||'',
-      lwTimeSpentSeconds:Number(event.lwTimeSpentSeconds||0)
+      lwTimeSpentSeconds:Number(event.lwTimeSpentSeconds||0),
+      lwHistoricalAtPathStart:!!event.lwHistoricalAtPathStart,
+      lwCompletionDetectedAt:event.lwCompletionDetectedAt||''
     }))
   }));
 
@@ -2156,7 +2166,7 @@ function visibleTrainingStateFingerprintV31(employee){
   const salesFixEnrollmentDate=employee.salesFixEnrollmentDate||'';
   const salesFixEnrollmentFound=employee.salesFixEnrollmentFound===true;
   const salesFixEnrollmentLookupCheckedAt=employee.salesFixEnrollmentLookupCheckedAt||'';
-  return JSON.stringify({paths,exams,readiness,salesFixEnrollmentDate,salesFixEnrollmentFound,salesFixEnrollmentLookupCheckedAt});
+  return JSON.stringify({paths,exams,readiness,salesFixEnrollmentDate,salesFixEnrollmentFound,salesFixEnrollmentLookupCheckedAt,lwRecentEvents:employee.lwRecentEvents||[]});
 }
 
 async function syncTrainingActivityServerV29(employee,{force=false}={}){
@@ -2221,11 +2231,11 @@ async function syncTrainingActivityServerV29(employee,{force=false}={}){
       // Only rebuild the employee view when something the manager can
       // actually see has changed. Sync timestamps and other metadata
       // should never cause a visual refresh.
+      replaceEmployeeStateFromServerV29(employee.id,payload.state);
       if(beforeFingerprint!==afterFingerprint){
         const scrollX=window.scrollX;
         const scrollY=window.scrollY;
 
-        replaceEmployeeStateFromServerV29(employee.id,payload.state);
         renderAll();
 
         requestAnimationFrame(()=>{
