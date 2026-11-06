@@ -95,6 +95,49 @@ async function fetchAllProgress(userId) {
   return courses;
 }
 
+const RECENT_EVENT_TYPES = new Map([
+  ['login', 'Logged in'],
+  ['visit_course', 'Visited course'],
+  ['complete_course', 'Completed course'],
+  ['session_scheduled', 'Session scheduled'],
+  ['session_attended', 'Session attended'],
+  ['certificate_awarded', 'Certificate awarded'],
+  ['certificate_issued', 'Certificate issued']
+]);
+
+async function fetchRecentEventLogs(userId) {
+  const collected = [];
+  let totalPages = 1;
+  for (let page = 1; page <= Math.min(totalPages, 4); page++) {
+    const url = `${process.env.LW_API_URL}/event-logs?user_id=${encodeURIComponent(userId)}&page=${page}`;
+    const response = await fetch(url, { headers, cache: 'no-store' });
+    if (!response.ok) throw new Error(`Event logs request failed (${response.status})`);
+    const payload = await response.json();
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    for (const row of rows) {
+      if (String(row?.user?.id || '') !== String(userId)) continue;
+      const activity = String(row?.activity || '');
+      if (!RECENT_EVENT_TYPES.has(activity)) continue;
+      const created = Number(row?.created);
+      if (!Number.isFinite(created) || created <= 0) continue;
+      const info = row?.additional_info || {};
+      const product = info.course || info.product || info.products || info.session || {};
+      const detail = typeof product === 'string' ? product :
+        (product?.name || product?.title || product?.id || '');
+      collected.push({
+        id: `${activity}:${created}:${row?.id || ''}:${detail}`,
+        date: new Date(created * 1000).toISOString(),
+        title: RECENT_EVENT_TYPES.get(activity),
+        detail: String(detail).slice(0, 180),
+        activity
+      });
+    }
+    totalPages = Math.max(1, Math.min(4, Number(payload?.meta?.totalPages || payload?.meta?.total_pages || 1)));
+    if (!rows.length) break;
+  }
+  return collected;
+}
+
 function flattenActivities(courses) {
   const activities = [];
 
@@ -1141,6 +1184,7 @@ export async function POST(request) {
       const path of
       state?.paths || []
     ) {
+      const initialBaseline = path.initialProgressBaselinePending === true;
       for (
         const event of
         path?.events || []
@@ -1256,6 +1300,7 @@ if (
   event.completed !== true
 ) {
           event.completed = true;
+          if (initialBaseline) event.lwHistoricalAtPathStart = true;
 
           event.lwCompleted = true;
 
@@ -1281,6 +1326,11 @@ if (
           changed = true;
           newlyCompleted += 1;
         }
+      }
+      if (initialBaseline) {
+        path.initialProgressBaselinePending = false;
+        path.initialProgressBaselineAt = new Date().toISOString();
+        changed = true;
       }
     }
 
@@ -1378,6 +1428,27 @@ if (
 
     state.certification =
       nextCertification;
+
+    const lastEventCheck = Date.parse(state.lwEventsLastCheckedAt || '');
+    if (!Number.isFinite(lastEventCheck) || Date.now() - lastEventCheck > 15 * 60 * 1000) {
+      try {
+        const recentEvents = await fetchRecentEventLogs(employeeId);
+        const previous = Array.isArray(state.lwRecentEvents) ? state.lwRecentEvents : [];
+        const merged = new Map(previous.map(item => [item.id, item]));
+        for (const item of recentEvents) merged.set(item.id, item);
+        const next = Array.from(merged.values())
+          .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+          .slice(0, 100);
+        if (JSON.stringify(previous) !== JSON.stringify(next)) {
+          state.lwRecentEvents = next;
+          changed = true;
+        }
+        state.lwEventsLastCheckedAt = new Date().toISOString();
+        changed = true;
+      } catch (eventError) {
+        console.error('Recent event logs sync failed:', eventError);
+      }
+    }
 
     const checkedAt =
       new Date().toISOString();
